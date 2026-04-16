@@ -284,7 +284,7 @@ WAGA_JWT_TOKEN="your_jwt_token" \
 }
 ```
 
-**📖 For comprehensive Docker deployment guide, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+**For comprehensive Docker deployment guide, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 ## MCP Tools
 
@@ -610,7 +610,7 @@ docker run -p 8080:8080 \
 
 This MCP server requires a running WhatsApp Gateway instance. For detailed setup instructions, deployment options, and configuration guidance, visit:
 
-**📖 WhatsApp Gateway Documentation:** https://waga.glennprays.com
+**WhatsApp Gateway Documentation:** https://waga.glennprays.com
 
 Once your gateway is running and you have a JWT token, configure this MCP server:
 
