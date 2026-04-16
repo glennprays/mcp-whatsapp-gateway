@@ -25,59 +25,57 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Version: "1.0.0",
 	}, nil)
 
-	// Create context with gateway client for tool handlers
-	ctx := context.WithValue(context.Background(), "gateway", gatewayClient)
 
 	// Register all tools (same as stdio)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "send_text_message",
 		Description: "Send a text message to a WhatsApp contact or group",
-	}, createSendTextMessageHandler(ctx))
+	}, createSendTextMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "send_image_message",
 		Description: "Send an image message to a WhatsApp contact or group",
-	}, createSendImageMessageHandler(ctx))
+	}, createSendImageMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "edit_message",
 		Description: "Edit a previously sent message",
-	}, createEditMessageHandler(ctx))
+	}, createEditMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_message",
 		Description: "Delete a previously sent message",
-	}, createDeleteMessageHandler(ctx))
+	}, createDeleteMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "react_to_message",
 		Description: "React to a message with an emoji",
-	}, createReactToMessageHandler(ctx))
+	}, createReactToMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
 		Description: "Check if the WhatsApp session is active and authenticated",
-	}, createCheckConnectionStatusHandler(ctx))
+	}, createCheckConnectionStatusHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_health",
 		Description: "Check if the WhatsApp Gateway service is reachable",
-	}, createCheckHealthHandler(ctx))
+	}, createCheckHealthHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_webhook",
 		Description: "Get the current webhook configuration",
-	}, createGetWebhookHandler(ctx))
+	}, createGetWebhookHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "register_webhook",
 		Description: "Register a webhook URL to receive WhatsApp messages",
-	}, createRegisterWebhookHandler(ctx))
+	}, createRegisterWebhookHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "delete_webhook",
 		Description: "Delete the currently registered webhook",
-	}, createDeleteWebhookHandler(ctx))
+	}, createDeleteWebhookHandler(gatewayClient))
 
 	// Create SSE handler
 	handler := mcp.NewSSEHandler(func(r *http.Request) *mcp.Server {

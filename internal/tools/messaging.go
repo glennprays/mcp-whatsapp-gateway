@@ -9,6 +9,15 @@ import (
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// GetGatewayClient retrieves the gateway client from context or returns an error
+func GetGatewayClient(ctx context.Context) (gateway.GatewayClient, error) {
+	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
+	if !ok || client == nil {
+		return nil, fmt.Errorf("gateway client not available")
+	}
+	return client, nil
+}
+
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
 	To      string `json:"to"`
@@ -55,6 +64,32 @@ func SendTextMessage(ctx context.Context, req *mcp.CallToolRequest, input SendMe
 	}
 
 	return nil, result, nil
+}
+
+// SendTextMessageDirect sends a text message without using context
+func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput) (SendMessageResult, error) {
+	// Validate input
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.Message == "" {
+		return SendMessageResult{}, fmt.Errorf("message content is required")
+	}
+
+	// Send message via gateway
+	ctx := context.Background()
+	resp, err := client.SendText(ctx, input.To, input.Message)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
+	}
+
+	result := SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    "sent",
+	}
+
+	return result, nil
 }
 
 // SendImageInput represents the input for sending an image message
