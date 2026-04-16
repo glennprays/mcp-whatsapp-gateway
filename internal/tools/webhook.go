@@ -33,10 +33,22 @@ func GetWebhook(ctx context.Context, req *mcp.CallToolRequest, input GetWebhookI
 		return nil, GetWebhookResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := GetWebhookDirect(client, input)
+	if err != nil {
+		return nil, GetWebhookResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// GetWebhookDirect retrieves the current webhook configuration without using context
+func GetWebhookDirect(client gateway.GatewayClient, input GetWebhookInput) (GetWebhookResult, error) {
 	// Get webhook via gateway
+	ctx := context.Background()
 	webhook, err := client.GetWebhook(ctx)
 	if err != nil {
-		return nil, GetWebhookResult{}, fmt.Errorf("get_webhook: %w", err)
+		return GetWebhookResult{}, fmt.Errorf("get_webhook: %w", err)
 	}
 
 	result := GetWebhookResult{
@@ -51,7 +63,7 @@ func GetWebhook(ctx context.Context, req *mcp.CallToolRequest, input GetWebhookI
 		result.Description = "No webhook is currently registered"
 	}
 
-	return nil, result, nil
+	return result, nil
 }
 
 // RegisterWebhookInput represents the input for registering a webhook
@@ -74,31 +86,43 @@ func RegisterWebhook(ctx context.Context, req *mcp.CallToolRequest, input Regist
 	RegisterWebhookResult,
 	error,
 ) {
-	// Validate input
-	if input.URL == "" {
-		return nil, RegisterWebhookResult{}, fmt.Errorf("webhook URL is required")
-	}
-
-	// Validate URL format
-	parsedURL, err := url.Parse(input.URL)
-	if err != nil {
-		return nil, RegisterWebhookResult{}, fmt.Errorf("invalid webhook URL format: %w", err)
-	}
-
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, RegisterWebhookResult{}, fmt.Errorf("webhook URL must use HTTP or HTTPS scheme")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, RegisterWebhookResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := RegisterWebhookDirect(client, input)
+	if err != nil {
+		return nil, RegisterWebhookResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// RegisterWebhookDirect registers a webhook URL to receive WhatsApp messages without using context
+func RegisterWebhookDirect(client gateway.GatewayClient, input RegisterWebhookInput) (RegisterWebhookResult, error) {
+	// Validate input
+	if input.URL == "" {
+		return RegisterWebhookResult{}, fmt.Errorf("webhook URL is required")
+	}
+
+	// Validate URL format
+	parsedURL, err := url.Parse(input.URL)
+	if err != nil {
+		return RegisterWebhookResult{}, fmt.Errorf("invalid webhook URL format: %w", err)
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return RegisterWebhookResult{}, fmt.Errorf("webhook URL must use HTTP or HTTPS scheme")
+	}
+
 	// Register webhook via gateway
+	ctx := context.Background()
 	err = client.RegisterWebhook(ctx, input.URL, input.HMACSecret)
 	if err != nil {
-		return nil, RegisterWebhookResult{}, fmt.Errorf("register_webhook: %w", err)
+		return RegisterWebhookResult{}, fmt.Errorf("register_webhook: %w", err)
 	}
 
 	result := RegisterWebhookResult{
@@ -108,7 +132,7 @@ func RegisterWebhook(ctx context.Context, req *mcp.CallToolRequest, input Regist
 		Description: "Webhook registered successfully. Incoming WhatsApp messages will be sent to this URL.",
 	}
 
-	return nil, result, nil
+	return result, nil
 }
 
 // DeleteWebhookInput represents the input for deleting a webhook
@@ -135,10 +159,22 @@ func DeleteWebhook(ctx context.Context, req *mcp.CallToolRequest, input DeleteWe
 		return nil, DeleteWebhookResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := DeleteWebhookDirect(client, input)
+	if err != nil {
+		return nil, DeleteWebhookResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// DeleteWebhookDirect removes the currently registered webhook without using context
+func DeleteWebhookDirect(client gateway.GatewayClient, input DeleteWebhookInput) (DeleteWebhookResult, error) {
 	// Delete webhook via gateway
+	ctx := context.Background()
 	err := client.DeleteWebhook(ctx)
 	if err != nil {
-		return nil, DeleteWebhookResult{}, fmt.Errorf("delete_webhook: %w", err)
+		return DeleteWebhookResult{}, fmt.Errorf("delete_webhook: %w", err)
 	}
 
 	result := DeleteWebhookResult{
@@ -147,5 +183,5 @@ func DeleteWebhook(ctx context.Context, req *mcp.CallToolRequest, input DeleteWe
 		Description: "Webhook deleted successfully. Incoming WhatsApp messages will no longer be sent.",
 	}
 
-	return nil, result, nil
+	return result, nil
 }

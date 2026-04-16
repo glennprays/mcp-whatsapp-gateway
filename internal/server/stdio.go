@@ -95,8 +95,14 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 
 func createSendTextMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendMessageInput) (*mcp.CallToolResult, any, error) {
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+
 		// Call the tool function directly with the gateway client
-		result, err := tools.SendTextMessageDirect(gatewayClient, input)
+		result, err := tools.SendTextMessageDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -106,9 +112,12 @@ func createSendTextMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolH
 
 func createSendImageMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendImageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendImageInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.SendImageMessage(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.SendImageMessageDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -118,9 +127,12 @@ func createSendImageMessageHandler(gatewayClient gateway.GatewayClient) mcp.Tool
 
 func createEditMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.EditMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.EditMessageInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.EditMessage(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.EditMessageDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -130,9 +142,12 @@ func createEditMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandl
 
 func createDeleteMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.DeleteMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.DeleteMessageInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.DeleteMessage(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.DeleteMessageDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -142,9 +157,12 @@ func createDeleteMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHan
 
 func createReactToMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.ReactToMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.ReactToMessageInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.ReactToMessage(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.ReactToMessageDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -154,9 +172,12 @@ func createReactToMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHa
 
 func createCheckConnectionStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckConnectionStatusInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckConnectionStatusInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.CheckConnectionStatus(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.CheckConnectionStatusDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -166,9 +187,12 @@ func createCheckConnectionStatusHandler(gatewayClient gateway.GatewayClient) mcp
 
 func createCheckHealthHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckHealthInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckHealthInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.CheckHealth(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.CheckHealthDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -178,9 +202,12 @@ func createCheckHealthHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandl
 
 func createGetWebhookHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetWebhookInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.GetWebhook(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.GetWebhookDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -190,9 +217,12 @@ func createGetWebhookHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandle
 
 func createRegisterWebhookHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.RegisterWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.RegisterWebhookInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.RegisterWebhook(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.RegisterWebhookDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -202,9 +232,12 @@ func createRegisterWebhookHandler(gatewayClient gateway.GatewayClient) mcp.ToolH
 
 func createDeleteWebhookHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.DeleteWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.DeleteWebhookInput) (*mcp.CallToolResult, any, error) {
-		// Create context with gateway client
-		gatewayCtx := context.WithValue(ctx, "gateway", gatewayClient)
-		_, result, err := tools.DeleteWebhook(gatewayCtx, req, input)
+		// Use global gateway client instead of parameter
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.DeleteWebhookDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}

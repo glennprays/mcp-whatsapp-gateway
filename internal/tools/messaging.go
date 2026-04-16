@@ -37,30 +37,16 @@ func SendTextMessage(ctx context.Context, req *mcp.CallToolRequest, input SendMe
 	SendMessageResult,
 	error,
 ) {
-	// Validate input
-	if input.To == "" {
-		return nil, SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
-	}
-	if input.Message == "" {
-		return nil, SendMessageResult{}, fmt.Errorf("message content is required")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, SendMessageResult{}, fmt.Errorf("gateway client not available")
 	}
 
-	// Send message via gateway
-	resp, err := client.SendText(ctx, input.To, input.Message)
+	// Call the direct implementation
+	result, err := SendTextMessageDirect(client, input)
 	if err != nil {
-		return nil, SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
-	}
-
-	result := SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
+		return nil, SendMessageResult{}, err
 	}
 
 	return nil, result, nil
@@ -106,18 +92,29 @@ func SendImageMessage(ctx context.Context, req *mcp.CallToolRequest, input SendI
 	SendMessageResult,
 	error,
 ) {
-	// Validate input
-	if input.To == "" {
-		return nil, SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
-	}
-	if input.ImageURL == "" {
-		return nil, SendMessageResult{}, fmt.Errorf("image URL is required")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, SendMessageResult{}, fmt.Errorf("gateway client not available")
+	}
+
+	// Call the direct implementation
+	result, err := SendImageMessageDirect(client, input)
+	if err != nil {
+		return nil, SendMessageResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// SendImageMessageDirect sends an image message without using context
+func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) (SendMessageResult, error) {
+	// Validate input
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.ImageURL == "" {
+		return SendMessageResult{}, fmt.Errorf("image URL is required")
 	}
 
 	// For now, use a placeholder reader
@@ -127,9 +124,10 @@ func SendImageMessage(ctx context.Context, req *mcp.CallToolRequest, input SendI
 	_ = input.ImageURL // Will be used to download the image
 
 	// Send image via gateway
+	ctx := context.Background()
 	resp, err := client.SendImage(ctx, input.To, imageReader, input.Caption, input.ViewOnce)
 	if err != nil {
-		return nil, SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
+		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
 
 	result := SendMessageResult{
@@ -138,7 +136,7 @@ func SendImageMessage(ctx context.Context, req *mcp.CallToolRequest, input SendI
 		Status:    "sent",
 	}
 
-	return nil, result, nil
+	return result, nil
 }
 
 // EditMessageInput represents the input for editing a message
@@ -160,27 +158,39 @@ func EditMessage(ctx context.Context, req *mcp.CallToolRequest, input EditMessag
 	EditMessageResult,
 	error,
 ) {
-	// Validate input
-	if input.To == "" {
-		return nil, EditMessageResult{}, fmt.Errorf("recipient address (to) is required")
-	}
-	if input.MessageID == "" {
-		return nil, EditMessageResult{}, fmt.Errorf("message ID is required")
-	}
-	if input.NewMessage == "" {
-		return nil, EditMessageResult{}, fmt.Errorf("new message content is required")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, EditMessageResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := EditMessageDirect(client, input)
+	if err != nil {
+		return nil, EditMessageResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// EditMessageDirect edits a previously sent message without using context
+func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (EditMessageResult, error) {
+	// Validate input
+	if input.To == "" {
+		return EditMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.MessageID == "" {
+		return EditMessageResult{}, fmt.Errorf("message ID is required")
+	}
+	if input.NewMessage == "" {
+		return EditMessageResult{}, fmt.Errorf("new message content is required")
+	}
+
 	// Edit message via gateway
+	ctx := context.Background()
 	err := client.EditMessage(ctx, input.To, input.MessageID, input.NewMessage)
 	if err != nil {
-		return nil, EditMessageResult{}, fmt.Errorf("edit_message: %w", err)
+		return EditMessageResult{}, fmt.Errorf("edit_message: %w", err)
 	}
 
 	result := EditMessageResult{
@@ -188,7 +198,7 @@ func EditMessage(ctx context.Context, req *mcp.CallToolRequest, input EditMessag
 		Status:  "edited",
 	}
 
-	return nil, result, nil
+	return result, nil
 }
 
 // DeleteMessageInput represents the input for deleting a message
@@ -209,24 +219,36 @@ func DeleteMessage(ctx context.Context, req *mcp.CallToolRequest, input DeleteMe
 	DeleteMessageResult,
 	error,
 ) {
-	// Validate input
-	if input.To == "" {
-		return nil, DeleteMessageResult{}, fmt.Errorf("recipient address (to) is required")
-	}
-	if input.MessageID == "" {
-		return nil, DeleteMessageResult{}, fmt.Errorf("message ID is required")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, DeleteMessageResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := DeleteMessageDirect(client, input)
+	if err != nil {
+		return nil, DeleteMessageResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// DeleteMessageDirect deletes a previously sent message without using context
+func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput) (DeleteMessageResult, error) {
+	// Validate input
+	if input.To == "" {
+		return DeleteMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.MessageID == "" {
+		return DeleteMessageResult{}, fmt.Errorf("message ID is required")
+	}
+
 	// Delete message via gateway
+	ctx := context.Background()
 	err := client.DeleteMessage(ctx, input.To, input.MessageID)
 	if err != nil {
-		return nil, DeleteMessageResult{}, fmt.Errorf("delete_message: %w", err)
+		return DeleteMessageResult{}, fmt.Errorf("delete_message: %w", err)
 	}
 
 	result := DeleteMessageResult{
@@ -234,7 +256,7 @@ func DeleteMessage(ctx context.Context, req *mcp.CallToolRequest, input DeleteMe
 		Status:  "deleted",
 	}
 
-	return nil, result, nil
+	return result, nil
 }
 
 // ReactToMessageInput represents the input for reacting to a message
@@ -256,27 +278,39 @@ func ReactToMessage(ctx context.Context, req *mcp.CallToolRequest, input ReactTo
 	ReactToMessageResult,
 	error,
 ) {
-	// Validate input
-	if input.To == "" {
-		return nil, ReactToMessageResult{}, fmt.Errorf("recipient address (to) is required")
-	}
-	if input.MessageID == "" {
-		return nil, ReactToMessageResult{}, fmt.Errorf("message ID is required")
-	}
-	if input.Emoji == "" {
-		return nil, ReactToMessageResult{}, fmt.Errorf("emoji is required")
-	}
-
 	// Get gateway client from context
 	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
 	if !ok || client == nil {
 		return nil, ReactToMessageResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := ReactToMessageDirect(client, input)
+	if err != nil {
+		return nil, ReactToMessageResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// ReactToMessageDirect reacts to a message with an emoji without using context
+func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInput) (ReactToMessageResult, error) {
+	// Validate input
+	if input.To == "" {
+		return ReactToMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.MessageID == "" {
+		return ReactToMessageResult{}, fmt.Errorf("message ID is required")
+	}
+	if input.Emoji == "" {
+		return ReactToMessageResult{}, fmt.Errorf("emoji is required")
+	}
+
 	// React to message via gateway
+	ctx := context.Background()
 	err := client.ReactToMessage(ctx, input.To, input.MessageID, input.Emoji)
 	if err != nil {
-		return nil, ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
+		return ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
 	}
 
 	result := ReactToMessageResult{
@@ -284,5 +318,5 @@ func ReactToMessage(ctx context.Context, req *mcp.CallToolRequest, input ReactTo
 		Status:  "reacted",
 	}
 
-	return nil, result, nil
+	return result, nil
 }

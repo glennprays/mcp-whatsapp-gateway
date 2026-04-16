@@ -1,6 +1,6 @@
 {
   "whatsapp-gateway": {
-    "command": "./mcp-whatsapp-gateway",
+    "command": "/Users/glennpray/projects/mcp-whatsapp-gateway/mcp-whatsapp-gateway",
     "args": [],
     "env": {
       "WAGA_BASE_URL": "https://waga.kaskur.site/api",
