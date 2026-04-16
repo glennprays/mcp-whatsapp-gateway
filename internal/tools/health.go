@@ -32,10 +32,22 @@ func CheckHealth(ctx context.Context, req *mcp.CallToolRequest, input CheckHealt
 		return nil, CheckHealthResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := CheckHealthDirect(client, input)
+	if err != nil {
+		return nil, CheckHealthResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// CheckHealthDirect checks if the WhatsApp Gateway service is reachable without using context
+func CheckHealthDirect(client gateway.GatewayClient, input CheckHealthInput) (CheckHealthResult, error) {
 	// Check health via gateway
+	ctx := context.Background()
 	health, err := client.Health(ctx)
 	if err != nil {
-		return nil, CheckHealthResult{}, fmt.Errorf("check_health: %w", err)
+		return CheckHealthResult{}, fmt.Errorf("check_health: %w", err)
 	}
 
 	result := CheckHealthResult{
@@ -49,5 +61,5 @@ func CheckHealth(ctx context.Context, req *mcp.CallToolRequest, input CheckHealt
 		result.Message = fmt.Sprintf("Gateway service status: %s", health.Status)
 	}
 
-	return nil, result, nil
+	return result, nil
 }

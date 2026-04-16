@@ -1,0 +1,10 @@
+{
+  "whatsapp-gateway": {
+    "command": "/Users/glennpray/projects/mcp-whatsapp-gateway/mcp-whatsapp-gateway",
+    "args": [],
+    "env": {
+      "WAGA_BASE_URL": "https://waga.kaskur.site/api",
+      "WAGA_JWT_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwaG9uZV9udW1iZXIiOiI2Mjg1MTU1NDg3NjMwIiwiaXNzIjoid2hhdHNhcHAtZ2F0ZXdheSIsInN1YiI6IjYyODUxNTU0ODc2MzAiLCJleHAiOjE4MDc4NjUwMzgsImlhdCI6MTc3NjMyOTAzOH0.GerOC-ONmV4xFDxE9pufo72EpZi3_KhEAvLIeO9dFMo"
+    }
+  }
+}

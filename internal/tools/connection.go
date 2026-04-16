@@ -32,10 +32,22 @@ func CheckConnectionStatus(ctx context.Context, req *mcp.CallToolRequest, input 
 		return nil, CheckConnectionStatusResult{}, fmt.Errorf("gateway client not available")
 	}
 
+	// Call the direct implementation
+	result, err := CheckConnectionStatusDirect(client, input)
+	if err != nil {
+		return nil, CheckConnectionStatusResult{}, err
+	}
+
+	return nil, result, nil
+}
+
+// CheckConnectionStatusDirect checks if the WhatsApp session is active and authenticated without using context
+func CheckConnectionStatusDirect(client gateway.GatewayClient, input CheckConnectionStatusInput) (CheckConnectionStatusResult, error) {
 	// Check login status via gateway
+	ctx := context.Background()
 	status, err := client.GetLoginStatus(ctx)
 	if err != nil {
-		return nil, CheckConnectionStatusResult{}, fmt.Errorf("check_connection_status: %w", err)
+		return CheckConnectionStatusResult{}, fmt.Errorf("check_connection_status: %w", err)
 	}
 
 	result := CheckConnectionStatusResult{
@@ -50,5 +62,5 @@ func CheckConnectionStatus(ctx context.Context, req *mcp.CallToolRequest, input 
 		result.Message = "WhatsApp session is not authenticated. Please reconnect to the gateway."
 	}
 
-	return nil, result, nil
+	return result, nil
 }
