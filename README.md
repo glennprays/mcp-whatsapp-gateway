@@ -2,6 +2,60 @@
 
 A Model Context Protocol (MCP) server that exposes the [WhatsApp Gateway (waga)](https://waga.glennprays.com) as tools for AI agents. This allows Claude and other AI agents to send WhatsApp messages, manage webhooks, and check connection status through a pre-authenticated JWT session.
 
+## What is WhatsApp Gateway?
+
+[WhatsApp Gateway (waga)](https://github.com/glennprays/whatsapp-gateway) is a standalone service that provides a REST API for interacting with WhatsApp. It handles:
+
+- **WhatsApp Integration**: Manages the connection to WhatsApp servers
+- **Message Handling**: Sends/receives text and image messages
+- **Session Management**: Maintains authenticated WhatsApp sessions
+- **Webhook Support**: Delivers incoming messages via webhooks
+- **Health Monitoring**: Provides status and health endpoints
+
+## How This MCP Server Connects
+
+This MCP server acts as a **bridge between AI agents and the WhatsApp Gateway**:
+
+```
+┌─────────────────┐     MCP Protocol      ┌──────────────────────┐     HTTP/JWT     ┌──────────────────┐
+│  AI Agent       │ ←────────────────────→ │  MCP WhatsApp        │ ←────────────────→ │  WhatsApp        │
+│  (Claude/Cursor │   (stdio or HTTP+SSE)   │  Gateway Server      │   (REST API)      │  Gateway         │
+│   Claude Code)  │                         │                      │                   │  (waga)          │
+└─────────────────┘                         └──────────────────────┘                   └──────────────────┘
+```
+
+**Data Flow:**
+1. **AI Agent** calls MCP tools (e.g., `send_text_message`)
+2. **MCP Server** receives the tool call and validates input
+3. **Gateway Client** makes HTTP request to WhatsApp Gateway with JWT authentication
+4. **WhatsApp Gateway** processes the request and interacts with WhatsApp
+5. **Response** flows back through the chain to the AI agent
+
+**Key Points:**
+- The WhatsApp Gateway runs as a **separate service** that you need to deploy
+- This MCP server connects to it via **HTTP using JWT authentication**
+- The gateway handles all WhatsApp-specific logic and protocol details
+- This MCP server only provides the MCP protocol interface for AI agents
+
+## Prerequisites
+
+Before using this MCP server, you need:
+
+1. **Running WhatsApp Gateway instance**
+   - Clone and deploy: https://github.com/glennprays/whatsapp-gateway
+   - Follow the gateway's setup instructions
+   - Ensure it's accessible via HTTP/HTTPS
+
+2. **JWT Token from Gateway**
+   - Register your phone number with the gateway
+   - Obtain a JWT token for authentication
+   - This token is used by the MCP server to authenticate with the gateway
+
+3. **Gateway Configuration**
+   - Set `WAGA_BASE_URL` to point to your gateway instance
+   - Example: `http://localhost:3000/api/v1` (local development)
+   - Example: `https://waga.example.com/api/v1` (production)
+
 ## Overview
 
 `mcp-whatsapp-gateway` is a Go-based MCP server that provides a clean interface between AI agents and the WhatsApp Gateway. It supports both stdio and HTTP+SSE transports, making it suitable for use with Claude Desktop, Cursor, Claude Code, or any MCP-compatible client.
@@ -20,6 +74,42 @@ A Model Context Protocol (MCP) server that exposes the [WhatsApp Gateway (waga)]
 - Comprehensive logging with trace IDs
 
 ## Quick Start
+
+### Step 1: Deploy WhatsApp Gateway
+
+First, you need to deploy and configure the WhatsApp Gateway service:
+
+```bash
+# Clone the WhatsApp Gateway repository
+git clone https://github.com/glennprays/whatsapp-gateway.git
+cd whatsapp-gateway
+
+# Follow the setup instructions in the gateway's README
+# Typically involves:
+# 1. Installing dependencies
+# 2. Configuring environment variables
+# 3. Running the gateway server
+```
+
+The gateway will provide:
+- **Base URL**: The HTTP endpoint where the gateway is running
+- **JWT Token**: Authentication token obtained after registering your phone number
+
+### Step 2: Configure MCP Server
+
+Once your gateway is running, configure this MCP server:
+
+```bash
+# Set the gateway connection details
+export WAGA_BASE_URL="http://localhost:3000/api/v1"  # Your gateway URL
+export WAGA_JWT_TOKEN="your_jwt_token_here"          # From gateway registration
+
+# Optional: Choose transport (stdio is default)
+export MCP_TRANSPORT="stdio"  # or "http" for web clients
+
+# Run the MCP server
+./mcp-whatsapp-gateway
+```
 
 ### Prerequisites
 
@@ -57,7 +147,7 @@ docker run -p 8080:8080 \
   -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
   -e WAGA_JWT_TOKEN="your_jwt_token" \
   -e MCP_TRANSPORT="http" \
-  -e APP_ENV="dev" \
+  -e APP_ENV="development" \
   mcp-whatsapp-gateway
 ```
 
@@ -71,14 +161,14 @@ export WAGA_BASE_URL="http://localhost:3000/api/v1"
 export WAGA_JWT_TOKEN="your_jwt_token"
 
 # Optional Configuration (with defaults)
-export APP_ENV="dev"                    # dev or prod
+export APP_ENV="developmentelopment"            # developmentelopment or productionuction
 export LOG_LEVEL="info"                 # debug, info, warn, error
 export MCP_TRANSPORT="stdio"            # stdio or http
 export MCP_PORT="8080"                  # HTTP+SSE port (when MCP_TRANSPORT=http)
 
 # Production HTTP+SSE Only
-export MCP_BASIC_AUTH_USER="admin"      # Required when APP_ENV=prod and MCP_TRANSPORT=http
-export MCP_BASIC_AUTH_PASSWORD="secure_password"  # Required when APP_ENV=prod and MCP_TRANSPORT=http
+export MCP_BASIC_AUTH_USER="admin"      # Required when APP_ENV=productionuction and MCP_TRANSPORT=http
+export MCP_BASIC_AUTH_PASSWORD="secure_password"  # Required when APP_ENV=productionuction and MCP_TRANSPORT=http
 ```
 
 ### Usage
@@ -101,7 +191,7 @@ For web-based MCP clients:
 # Development (no authentication)
 MCP_TRANSPORT="http" \
 MCP_PORT="8080" \
-APP_ENV="dev" \
+APP_ENV="development" \
 WAGA_BASE_URL="http://localhost:3000/api/v1" \
 WAGA_JWT_TOKEN="your_jwt_token" \
 ./mcp-whatsapp-gateway
@@ -109,7 +199,7 @@ WAGA_JWT_TOKEN="your_jwt_token" \
 # Production (with Basic authentication)
 MCP_TRANSPORT="http" \
 MCP_PORT="8080" \
-APP_ENV="prod" \
+APP_ENV="production" \
 MCP_BASIC_AUTH_USER="admin" \
 MCP_BASIC_AUTH_PASSWORD="secure_password" \
 WAGA_BASE_URL="http://localhost:3000/api/v1" \
@@ -257,7 +347,7 @@ WAGA_JWT_TOKEN="test_token" \
 # Test HTTP+SSE transport
 MCP_TRANSPORT="http" \
 MCP_PORT="8080" \
-APP_ENV="dev" \
+APP_ENV="development" \
 WAGA_BASE_URL="http://localhost:3000/api/v1" \
 WAGA_JWT_TOKEN="test_token" \
 ./mcp-whatsapp-gateway
@@ -282,7 +372,7 @@ docker run -p 8080:8080 \
   -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
   -e WAGA_JWT_TOKEN="your_jwt_token" \
   -e MCP_TRANSPORT="http" \
-  -e APP_ENV="dev" \
+  -e APP_ENV="development" \
   mcp-whatsapp-gateway
 
 # Production mode (with auth)
@@ -290,7 +380,7 @@ docker run -p 8080:8080 \
   -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
   -e WAGA_JWT_TOKEN="your_jwt_token" \
   -e MCP_TRANSPORT="http" \
-  -e APP_ENV="prod" \
+  -e APP_ENV="production" \
   -e MCP_BASIC_AUTH_USER="admin" \
   -e MCP_BASIC_AUTH_PASSWORD="secure_password" \
   mcp-whatsapp-gateway
@@ -318,13 +408,146 @@ mcp-whatsapp-gateway/
 - **Server**: MCP protocol support with stdio and HTTP+SSE transports
 - **Tools**: Message handling, connection management, and webhook operations
 
+### Relationship to WhatsApp Gateway
+
+This MCP server is **designed to work exclusively with the WhatsApp Gateway**:
+
+- **Separate Services**: The MCP server and WhatsApp Gateway are separate services
+- **HTTP Communication**: MCP server communicates with gateway via HTTP/HTTPS
+- **JWT Authentication**: Uses JWT tokens obtained from the gateway for authentication
+- **API Endpoints**: Maps MCP tools to gateway REST API endpoints
+  - `send_text_message` → POST /message/text
+  - `check_health` → GET /health
+  - `get_webhook` → GET /webhook
+  - etc.
+
+**Why This Architecture?**
+- **Separation of Concerns**: WhatsApp Gateway handles WhatsApp protocol, MCP server handles AI agent integration
+- **Scalability**: Each service can be deployed and scaled independently
+- **Flexibility**: Multiple MCP servers can connect to the same gateway
+- **Security**: JWT tokens provide secure authentication without exposing WhatsApp credentials
+
+## Troubleshooting
+
+### Gateway Connection Issues
+
+**Problem**: "Failed to initialize gateway client" or "Gateway health check failed"
+
+**Solutions**:
+1. **Verify Gateway is Running**: Ensure the WhatsApp Gateway service is running
+   ```bash
+   curl http://localhost:3000/api/v1/health
+   ```
+
+2. **Check WAGA_BASE_URL**: Verify the URL is correct and accessible
+   - Local: `http://localhost:3000/api/v1`
+   - Docker: Use `host.docker.internal` on Mac/Windows
+   - Remote: Ensure firewall allows connections
+
+3. **Validate JWT Token**: Ensure your JWT token is valid and not expired
+   ```bash
+   # Test gateway connection with curl
+   curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+        http://localhost:3000/api/v1/health
+   ```
+
+4. **Check Gateway Logs**: Look for errors in the WhatsApp Gateway logs
+
+**Problem**: "401 Unauthorized" when sending messages
+
+**Solutions**:
+1. **JWT Token Expired**: Re-register your phone number with the gateway to get a new token
+2. **Invalid Token**: Verify the token is correctly set in `WAGA_JWT_TOKEN`
+
+**Problem**: "403 Forbidden" when sending messages
+
+**Solutions**:
+1. **Session Disconnected**: Your WhatsApp session may have disconnected
+2. **Run Connection Check**: Use `check_connection_status` tool to verify
+3. **Reconnect Gateway**: Restart the WhatsApp Gateway and re-authenticate
+
+### MCP Server Issues
+
+**Problem**: "Invalid transport type"
+
+**Solution**: Set `MCP_TRANSPORT` to either `stdio` or `http`
+
+**Problem**: HTTP+SSE returns 401 in production
+
+**Solution**: Set `MCP_BASIC_AUTH_USER` and `MCP_BASIC_AUTH_PASSWORD` when `APP_ENV=production`
+
+### Docker Networking
+
+**Problem**: Container cannot reach host services
+
+**Solution**: Use the appropriate host address:
+- macOS/Windows: `host.docker.internal`
+- Linux: Use host's IP address or `172.17.0.1` (default Docker bridge)
+
+```bash
+# Example for macOS/Windows
+docker run -p 8080:8080 \
+  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
+  -e WAGA_JWT_TOKEN="your_token" \
+  mcp-whatsapp-gateway
+```
+
 ## Security Considerations
 
 - **JWT Token**: Store securely and never log at Info level or above
 - **Basic Auth**: Required for production HTTP+SSE deployments
-- **Environment**: Use `APP_ENV=prod` in production for security features
+- **Environment**: Use `APP_ENV=production` in production for security features
 - **Docker**: Uses distroless base image for minimal attack surface
 - **Logging**: Sensitive data is never logged at Info level or above
+
+## Getting Started with WhatsApp Gateway
+
+To use this MCP server, you first need to set up the WhatsApp Gateway:
+
+### 1. Clone and Deploy WhatsApp Gateway
+
+```bash
+git clone https://github.com/glennprays/whatsapp-gateway.git
+cd whatsapp-gateway
+
+# Follow the setup instructions in the gateway's README
+# This typically involves:
+# - Installing dependencies (Go, WhatsApp requirements)
+# - Configuring environment variables
+# - Building and running the gateway server
+```
+
+### 2. Register Your Phone Number
+
+Once the gateway is running, register your WhatsApp phone number:
+
+```bash
+# The gateway will provide a QR code or pair code
+# Scan it with WhatsApp to authenticate
+# After successful registration, you'll receive a JWT token
+```
+
+### 3. Configure MCP Server
+
+Use the gateway URL and JWT token to configure this MCP server:
+
+```bash
+export WAGA_BASE_URL="http://localhost:3000/api/v1"  # Your gateway URL
+export WAGA_JWT_TOKEN="your_jwt_token_here"          # From step 2
+./mcp-whatsapp-gateway
+```
+
+### 4. Test the Connection
+
+```bash
+# Test if the MCP server can reach the gateway
+# The MCP server performs a health check on startup
+# You should see: "Gateway health check passed: status=ok"
+```
+
+**Documentation**: For detailed WhatsApp Gateway setup instructions, visit:
+- GitHub: https://github.com/glennprays/whatsapp-gateway
+- Documentation: https://waga.glennprays.com
 
 ## Dependencies
 
