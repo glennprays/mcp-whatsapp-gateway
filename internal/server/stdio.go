@@ -83,10 +83,11 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 }
 
 // Handler creation functions - these bridge our existing tool handlers to MCP SDK format
+// The gatewayCtx parameter contains the gateway client and is captured in the closure
 
-func createSendTextMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.SendMessageInput, any] {
+func createSendTextMessageHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.SendMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendMessageInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.SendTextMessage(ctx, req, input)
+		_, result, err := tools.SendTextMessage(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -94,9 +95,9 @@ func createSendTextMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.
 	}
 }
 
-func createSendImageMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.SendImageInput, any] {
+func createSendImageMessageHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.SendImageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendImageInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.SendImageMessage(ctx, req, input)
+		_, result, err := tools.SendImageMessage(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -104,9 +105,9 @@ func createSendImageMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools
 	}
 }
 
-func createEditMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.EditMessageInput, any] {
+func createEditMessageHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.EditMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.EditMessageInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.EditMessage(ctx, req, input)
+		_, result, err := tools.EditMessage(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -114,9 +115,9 @@ func createEditMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.Edit
 	}
 }
 
-func createDeleteMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.DeleteMessageInput, any] {
+func createDeleteMessageHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.DeleteMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.DeleteMessageInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.DeleteMessage(ctx, req, input)
+		_, result, err := tools.DeleteMessage(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -124,9 +125,9 @@ func createDeleteMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.De
 	}
 }
 
-func createReactToMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.ReactToMessageInput, any] {
+func createReactToMessageHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.ReactToMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.ReactToMessageInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.ReactToMessage(ctx, req, input)
+		_, result, err := tools.ReactToMessage(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -134,9 +135,9 @@ func createReactToMessageHandler(ctx context.Context) mcp.ToolHandlerFor[tools.R
 	}
 }
 
-func createCheckConnectionStatusHandler(ctx context.Context) mcp.ToolHandlerFor[tools.CheckConnectionStatusInput, any] {
+func createCheckConnectionStatusHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.CheckConnectionStatusInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckConnectionStatusInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.CheckConnectionStatus(ctx, req, input)
+		_, result, err := tools.CheckConnectionStatus(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -144,9 +145,9 @@ func createCheckConnectionStatusHandler(ctx context.Context) mcp.ToolHandlerFor[
 	}
 }
 
-func createCheckHealthHandler(ctx context.Context) mcp.ToolHandlerFor[tools.CheckHealthInput, any] {
+func createCheckHealthHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.CheckHealthInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckHealthInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.CheckHealth(ctx, req, input)
+		_, result, err := tools.CheckHealth(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -154,9 +155,9 @@ func createCheckHealthHandler(ctx context.Context) mcp.ToolHandlerFor[tools.Chec
 	}
 }
 
-func createGetWebhookHandler(ctx context.Context) mcp.ToolHandlerFor[tools.GetWebhookInput, any] {
+func createGetWebhookHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.GetWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetWebhookInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.GetWebhook(ctx, req, input)
+		_, result, err := tools.GetWebhook(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -164,9 +165,9 @@ func createGetWebhookHandler(ctx context.Context) mcp.ToolHandlerFor[tools.GetWe
 	}
 }
 
-func createRegisterWebhookHandler(ctx context.Context) mcp.ToolHandlerFor[tools.RegisterWebhookInput, any] {
+func createRegisterWebhookHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.RegisterWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.RegisterWebhookInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.RegisterWebhook(ctx, req, input)
+		_, result, err := tools.RegisterWebhook(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -174,9 +175,9 @@ func createRegisterWebhookHandler(ctx context.Context) mcp.ToolHandlerFor[tools.
 	}
 }
 
-func createDeleteWebhookHandler(ctx context.Context) mcp.ToolHandlerFor[tools.DeleteWebhookInput, any] {
+func createDeleteWebhookHandler(gatewayCtx context.Context) mcp.ToolHandlerFor[tools.DeleteWebhookInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.DeleteWebhookInput) (*mcp.CallToolResult, any, error) {
-		_, result, err := tools.DeleteWebhook(ctx, req, input)
+		_, result, err := tools.DeleteWebhook(gatewayCtx, req, input)
 		if err != nil {
 			return nil, nil, err
 		}
