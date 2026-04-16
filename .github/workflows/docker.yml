@@ -62,14 +62,23 @@ jobs:
             ${{ vars.DOCKER_IMAGE }}:${{ steps.tag.outputs.VERSION }}
             ${{ vars.DOCKER_IMAGE }}:latest
 
-      - name: Update GitHub repository description
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Docker Hub repository description
         run: |
-          # Extract description from README (first paragraph after title)
-          DESCRIPTION=$(sed -n '3p' README.md | sed 's/^A //')
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
 
-          # Update repository description
-          gh repo edit \
-            --description "$DESCRIPTION" \
-            --homepage "https://waga.glennprays.com"
+          # Extract description from README (first paragraph after title)
+          DESCRIPTION=$(sed -n '3p' README.md)
+
+          # Read README and escape for JSON
+          README_CONTENT=$(cat README.md | jq -Rs .)
+
+          # Update Docker Hub repository using API
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.DOCKERHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"description\": \"$DESCRIPTION\",
+              \"full_description\": $README_CONTENT
+            }" \
+            "https://hub.docker.com/v2/repositories/${{ vars.DOCKER_IMAGE }}/"
