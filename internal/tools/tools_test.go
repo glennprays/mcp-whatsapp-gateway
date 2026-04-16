@@ -439,3 +439,372 @@ func TestReactToMessage_MissingEmoji(t *testing.T) {
 		t.Fatal("Expected error for missing emoji")
 	}
 }
+
+// Test CheckConnectionStatus
+
+func TestCheckConnectionStatus_Success_Connected(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetLoginStatusFunc: func(ctx context.Context) (*gateway.LoginStatus, error) {
+			return &gateway.LoginStatus{Authenticated: true}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	if err != nil {
+		t.Fatalf("CheckConnectionStatus() failed: %v", err)
+	}
+
+	if !result.Authenticated {
+		t.Error("Expected authenticated to be true")
+	}
+
+	if result.Status != "connected" {
+		t.Errorf("Expected status 'connected', got '%s'", result.Status)
+	}
+
+	if result.Message != "WhatsApp session is active and authenticated" {
+		t.Errorf("Expected message about active session, got '%s'", result.Message)
+	}
+}
+
+func TestCheckConnectionStatus_Success_Disconnected(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetLoginStatusFunc: func(ctx context.Context) (*gateway.LoginStatus, error) {
+			return &gateway.LoginStatus{Authenticated: false}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	if err != nil {
+		t.Fatalf("CheckConnectionStatus() failed: %v", err)
+	}
+
+	if result.Authenticated {
+		t.Error("Expected authenticated to be false")
+	}
+
+	if result.Status != "disconnected" {
+		t.Errorf("Expected status 'disconnected', got '%s'", result.Status)
+	}
+}
+
+func TestCheckConnectionStatus_NoGatewayClient(t *testing.T) {
+	ctx := context.Background()
+
+	_, _, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	if err == nil {
+		t.Fatal("Expected error when gateway client is not available")
+	}
+
+	if err.Error() != "gateway client not available" {
+		t.Errorf("Expected error about missing gateway client, got: %v", err)
+	}
+}
+
+func TestCheckConnectionStatus_GatewayError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetLoginStatusFunc: func(ctx context.Context) (*gateway.LoginStatus, error) {
+			return nil, errors.New("gateway connection failed")
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, _, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	if err == nil {
+		t.Fatal("Expected error from gateway")
+	}
+}
+
+// Test CheckHealth
+
+func TestCheckHealth_Success_OK(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		HealthFunc: func(ctx context.Context) (*gateway.HealthResponse, error) {
+			return &gateway.HealthResponse{Status: "ok", Timestamp: "2024-01-01T12:00:00Z"}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	if err != nil {
+		t.Fatalf("CheckHealth() failed: %v", err)
+	}
+
+	if result.Status != "ok" {
+		t.Errorf("Expected status 'ok', got '%s'", result.Status)
+	}
+
+	if result.Timestamp != "2024-01-01T12:00:00Z" {
+		t.Errorf("Expected timestamp '2024-01-01T12:00:00Z', got '%s'", result.Timestamp)
+	}
+
+	if result.Message != "Gateway service is reachable and healthy" {
+		t.Errorf("Expected message about healthy service, got '%s'", result.Message)
+	}
+}
+
+func TestCheckHealth_Success_NotOK(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		HealthFunc: func(ctx context.Context) (*gateway.HealthResponse, error) {
+			return &gateway.HealthResponse{Status: "degraded", Timestamp: "2024-01-01T12:00:00Z"}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	if err != nil {
+		t.Fatalf("CheckHealth() failed: %v", err)
+	}
+
+	if result.Status != "degraded" {
+		t.Errorf("Expected status 'degraded', got '%s'", result.Status)
+	}
+
+	if result.Message != "Gateway service status: degraded" {
+		t.Errorf("Expected message about service status, got '%s'", result.Message)
+	}
+}
+
+func TestCheckHealth_NoGatewayClient(t *testing.T) {
+	ctx := context.Background()
+
+	_, _, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	if err == nil {
+		t.Fatal("Expected error when gateway client is not available")
+	}
+
+	if err.Error() != "gateway client not available" {
+		t.Errorf("Expected error about missing gateway client, got: %v", err)
+	}
+}
+
+func TestCheckHealth_GatewayError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		HealthFunc: func(ctx context.Context) (*gateway.HealthResponse, error) {
+			return nil, errors.New("gateway connection failed")
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, _, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	if err == nil {
+		t.Fatal("Expected error from gateway")
+	}
+}
+
+// Test GetWebhook
+
+func TestGetWebhook_Success_Registered(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetWebhookFunc: func(ctx context.Context) (*gateway.WebhookResponse, error) {
+			return &gateway.WebhookResponse{
+				URL: "https://example.com/webhook",
+			}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	if err != nil {
+		t.Fatalf("GetWebhook() failed: %v", err)
+	}
+
+	if result.URL != "https://example.com/webhook" {
+		t.Errorf("Expected URL 'https://example.com/webhook', got '%s'", result.URL)
+	}
+
+	if result.Status != "registered" {
+		t.Errorf("Expected status 'registered', got '%s'", result.Status)
+	}
+}
+
+func TestGetWebhook_Success_NotRegistered(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetWebhookFunc: func(ctx context.Context) (*gateway.WebhookResponse, error) {
+			return &gateway.WebhookResponse{
+				URL: "",
+			}, nil
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	if err != nil {
+		t.Fatalf("GetWebhook() failed: %v", err)
+	}
+
+	if result.URL != "" {
+		t.Errorf("Expected empty URL, got '%s'", result.URL)
+	}
+
+	if result.Status != "not_registered" {
+		t.Errorf("Expected status 'not_registered', got '%s'", result.Status)
+	}
+}
+
+func TestGetWebhook_NoGatewayClient(t *testing.T) {
+	ctx := context.Background()
+
+	_, _, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	if err == nil {
+		t.Fatal("Expected error when gateway client is not available")
+	}
+}
+
+func TestGetWebhook_GatewayError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetWebhookFunc: func(ctx context.Context) (*gateway.WebhookResponse, error) {
+			return nil, errors.New("gateway connection failed")
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, _, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	if err == nil {
+		t.Fatal("Expected error from gateway")
+	}
+}
+
+// Test RegisterWebhook
+
+func TestRegisterWebhook_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+	input := RegisterWebhookInput{
+		URL:        "https://example.com/webhook",
+		HMACSecret: "secret123",
+	}
+
+	_, result, err := RegisterWebhook(ctx, nil, input)
+	if err != nil {
+		t.Fatalf("RegisterWebhook() failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Error("Expected success to be true")
+	}
+
+	if result.URL != "https://example.com/webhook" {
+		t.Errorf("Expected URL 'https://example.com/webhook', got '%s'", result.URL)
+	}
+
+	if result.Status != "registered" {
+		t.Errorf("Expected status 'registered', got '%s'", result.Status)
+	}
+}
+
+func TestRegisterWebhook_MissingURL(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+	input := RegisterWebhookInput{
+		URL: "",
+	}
+
+	_, _, err := RegisterWebhook(ctx, nil, input)
+	if err == nil {
+		t.Fatal("Expected error for missing URL")
+	}
+
+	if !errors.Is(err, errors.New("webhook URL is required")) && err.Error() != "webhook URL is required" {
+		t.Errorf("Expected error about missing URL, got: %v", err)
+	}
+}
+
+func TestRegisterWebhook_InvalidURL(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+	input := RegisterWebhookInput{
+		URL: "://invalid-url",
+	}
+
+	_, _, err := RegisterWebhook(ctx, nil, input)
+	if err == nil {
+		t.Fatal("Expected error for invalid URL")
+	}
+}
+
+func TestRegisterWebhook_InvalidURLScheme(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+	input := RegisterWebhookInput{
+		URL: "ftp://example.com/webhook",
+	}
+
+	_, _, err := RegisterWebhook(ctx, nil, input)
+	if err == nil {
+		t.Fatal("Expected error for invalid URL scheme")
+	}
+
+	if !errors.Is(err, errors.New("webhook URL must use HTTP or HTTPS scheme")) && err.Error() != "webhook URL must use HTTP or HTTPS scheme" {
+		t.Errorf("Expected error about URL scheme, got: %v", err)
+	}
+}
+
+func TestRegisterWebhook_NoGatewayClient(t *testing.T) {
+	ctx := context.Background()
+	input := RegisterWebhookInput{
+		URL: "https://example.com/webhook",
+	}
+
+	_, _, err := RegisterWebhook(ctx, nil, input)
+	if err == nil {
+		t.Fatal("Expected error when gateway client is not available")
+	}
+}
+
+// Test DeleteWebhook
+
+func TestDeleteWebhook_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, result, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
+	if err != nil {
+		t.Fatalf("DeleteWebhook() failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Error("Expected success to be true")
+	}
+
+	if result.Status != "deleted" {
+		t.Errorf("Expected status 'deleted', got '%s'", result.Status)
+	}
+}
+
+func TestDeleteWebhook_NoGatewayClient(t *testing.T) {
+	ctx := context.Background()
+
+	_, _, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
+	if err == nil {
+		t.Fatal("Expected error when gateway client is not available")
+	}
+}
+
+func TestDeleteWebhook_GatewayError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		DeleteWebhookFunc: func(ctx context.Context) error {
+			return errors.New("gateway connection failed")
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), "gateway", mockClient)
+
+	_, _, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
+	if err == nil {
+		t.Fatal("Expected error from gateway")
+	}
+}

@@ -11,8 +11,8 @@ import (
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
-	To      string `json:"to" jsonschema:"required,Recipient WhatsApp address in JID format (e.g., 6281234567890@s.whatsapp.net for individuals or 120363xxxxx@g.us for groups)"`
-	Message string `json:"message" jsonschema:"required,Text message content to send"`
+	To      string `json:"to"`
+	Message string `json:"message"`
 }
 
 // SendMessageResult represents the result of sending a message
@@ -59,10 +59,10 @@ func SendTextMessage(ctx context.Context, req *mcp.CallToolRequest, input SendMe
 
 // SendImageInput represents the input for sending an image message
 type SendImageInput struct {
-	To       string `json:"to" jsonschema:"required,Recipient WhatsApp address in JID format (e.g., 6281234567890@s.whatsapp.net for individuals or 120363xxxxx@g.us for groups)"`
-	ImageURL string `json:"image_url" jsonschema:"required,URL of the image to send"`
-	Caption  string `json:"caption" jsonschema:"optional,Image caption or description"`
-	ViewOnce bool   `json:"view_once" jsonschema:"optional,Whether the image should be view-once (disappears after viewing), default: false"`
+	To       string `json:"to"`
+	ImageURL string `json:"image_url"`
+	Caption  string `json:"caption"`
+	ViewOnce bool   `json:"view_once"`
 }
 
 // SendImageMessage sends an image message to a WhatsApp contact or group
@@ -108,9 +108,9 @@ func SendImageMessage(ctx context.Context, req *mcp.CallToolRequest, input SendI
 
 // EditMessageInput represents the input for editing a message
 type EditMessageInput struct {
-	To         string `json:"to" jsonschema:"required,Recipient WhatsApp address in JID format (e.g., 6281234567890@s.whatsapp.net for individuals or 120363xxxxx@g.us for groups)"`
-	MessageID  string `json:"message_id" jsonschema:"required,ID of the message to edit"`
-	NewMessage string `json:"new_message" jsonschema:"required,New message content to replace the original message"`
+	To         string `json:"to"`
+	MessageID  string `json:"message_id"`
+	NewMessage string `json:"new_message"`
 }
 
 // EditMessageResult represents the result of editing a message
@@ -158,8 +158,8 @@ func EditMessage(ctx context.Context, req *mcp.CallToolRequest, input EditMessag
 
 // DeleteMessageInput represents the input for deleting a message
 type DeleteMessageInput struct {
-	To        string `json:"to" jsonschema:"required,Recipient WhatsApp address in JID format (e.g., 6281234567890@s.whatsapp.net for individuals or 120363xxxxx@g.us for groups)"`
-	MessageID string `json:"message_id" jsonschema:"required,ID of the message to delete"`
+	To        string `json:"to"`
+	MessageID string `json:"message_id"`
 }
 
 // DeleteMessageResult represents the result of deleting a message
@@ -204,9 +204,9 @@ func DeleteMessage(ctx context.Context, req *mcp.CallToolRequest, input DeleteMe
 
 // ReactToMessageInput represents the input for reacting to a message
 type ReactToMessageInput struct {
-	To       string `json:"to" jsonschema:"required,Recipient WhatsApp address in JID format (e.g., 6281234567890@s.whatsapp.net for individuals or 120363xxxxx@g.us for groups)"`
-	MessageID string `json:"message_id" jsonschema:"required,ID of the message to react to"`
-	Emoji    string `json:"emoji" jsonschema:"required,Emoji reaction (e.g., 👍, ❤️, 😂)"`
+	To       string `json:"to"`
+	MessageID string `json:"message_id"`
+	Emoji    string `json:"emoji"`
 }
 
 // ReactToMessageResult represents the result of reacting to a message
