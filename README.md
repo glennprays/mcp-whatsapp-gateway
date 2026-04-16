@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server that exposes the [WhatsApp Gateway (waga)](https://waga.glennprays.com) as tools for AI agents. This allows Claude and other AI agents to send WhatsApp messages, manage webhooks, and check connection status through a pre-authenticated JWT session.
 
+**📖 Documentation:**
+- **[DOCKER_USAGE.md](DOCKER_USAGE.md)** - Comprehensive Docker deployment guide
+- **[README.md](#quick-start)** - Quick start and overview (this file)
+
 ## What is WhatsApp Gateway?
 
 [WhatsApp Gateway (waga)](https://github.com/glennprays/whatsapp-gateway) is a standalone service that provides a REST API for interacting with WhatsApp. It handles:
@@ -101,6 +105,8 @@ docker run -d --name whatsapp-gateway-mcp \
   glennprays/mcp-whatsapp-gateway:latest
 ```
 
+> **📖 For comprehensive Docker deployment guide, transport options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+
 ### 3. Configure Your MCP Client
 
 See [Configuring MCP Clients](#configuring-mcp-clients) below for detailed instructions.
@@ -117,6 +123,8 @@ Pull the pre-built image from Docker Hub:
 docker pull glennprays/mcp-whatsapp-gateway:latest
 ```
 
+> **💡 For detailed Docker setup, deployment options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+
 ### From Source (Development Only)
 
 ```bash
@@ -132,20 +140,6 @@ go build -o mcp-whatsapp-gateway
 
 # Or install directly
 go install github.com/glennprays/mcp-whatsapp-gateway@latest
-```
-
-### Building Docker Image (Development)
-
-```bash
-# Build the Docker image
-docker build -t mcp-whatsapp-gateway .
-
-# Run the container
-docker run -p 8080:8080 \
-  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
-  -e WAGA_JWT_TOKEN="your_jwt_token" \
-  -e MCP_TRANSPORT="http" \
-  mcp-whatsapp-gateway
 ```
 
 ## Configuration
@@ -284,7 +278,21 @@ WAGA_JWT_TOKEN="your_jwt_token" \
 }
 ```
 
-**For comprehensive Docker deployment guide, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+> **💡 For Docker deployment options, transport configuration, and production setup, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+
+#### Claude Code CLI
+
+For Claude Code CLI, configure MCP servers using the command line:
+
+```bash
+# Add the MCP server with environment variables
+claude mcp add -e WAGA_BASE_URL=http://host.docker.internal:3000/api/v1 \
+  -e WAGA_JWT_TOKEN=your_jwt_token \
+  whatsapp-gateway -- /path/to/mcp-whatsapp-gateway
+
+# Or use a project-specific .mcp.json file
+# See .mcp.json.example in this repository
+```
 
 ## MCP Tools
 
@@ -437,59 +445,23 @@ curl http://localhost:8080/mcp
 
 ## Docker Usage
 
-### Using Pre-built Images (Recommended)
+For comprehensive Docker deployment instructions including:
+- Transport options (stdio vs HTTP+SSE)
+- Production deployment with authentication
+- Docker networking configuration
+- Environment variable reference
+- Troubleshooting Docker-specific issues
+
+**📖 See the complete [DOCKER_USAGE.md](DOCKER_USAGE.md) guide**
+
+### Quick Docker Commands
 
 ```bash
 # Pull the latest image
 docker pull glennprays/mcp-whatsapp-gateway:latest
 
-# Run in development mode (no auth)
-docker run -p 8080:8080 \
-  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
-  -e WAGA_JWT_TOKEN="your_jwt_token" \
-  -e MCP_TRANSPORT="http" \
-  -e APP_ENV="development" \
-  glennprays/mcp-whatsapp-gateway:latest
-
-# Run in production mode (with auth)
-docker run -d --name whatsapp-gateway-mcp \
-  -p 8080:8080 \
-  -e WAGA_BASE_URL="https://your-gateway.com/api/v1" \
-  -e WAGA_JWT_TOKEN="your_jwt_token" \
-  -e MCP_TRANSPORT="http" \
-  -e APP_ENV="production" \
-  -e MCP_BASIC_AUTH_USER="admin" \
-  -e MCP_BASIC_AUTH_PASSWORD="your_secure_password" \
-  --restart unless-stopped \
-  glennprays/mcp-whatsapp-gateway:latest
-```
-
-### Building from Source (Development Only)
-
-```bash
+# Build from source (development only)
 docker build -t mcp-whatsapp-gateway .
-```
-
-### Running
-
-```bash
-# Development mode (no auth)
-docker run -p 8080:8080 \
-  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
-  -e WAGA_JWT_TOKEN="your_jwt_token" \
-  -e MCP_TRANSPORT="http" \
-  -e APP_ENV="development" \
-  mcp-whatsapp-gateway
-
-# Production mode (with auth)
-docker run -p 8080:8080 \
-  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
-  -e WAGA_JWT_TOKEN="your_jwt_token" \
-  -e MCP_TRANSPORT="http" \
-  -e APP_ENV="production" \
-  -e MCP_BASIC_AUTH_USER="admin" \
-  -e MCP_BASIC_AUTH_PASSWORD="secure_password" \
-  mcp-whatsapp-gateway
 ```
 
 ## Architecture
@@ -608,9 +580,13 @@ docker run -p 8080:8080 \
 
 ## Getting Started with WhatsApp Gateway
 
-This MCP server requires a running WhatsApp Gateway instance. For detailed setup instructions, deployment options, and configuration guidance, visit:
+This MCP server requires a running WhatsApp Gateway instance.
 
-**WhatsApp Gateway Documentation:** https://waga.glennprays.com
+**For detailed WhatsApp Gateway setup instructions, deployment options, and configuration:**
+- **WhatsApp Gateway Documentation:** https://waga.glennprays.com
+- **GitHub Repository:** https://github.com/glennprays/whatsapp-gateway
+
+**For Docker deployment of this MCP server, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 Once your gateway is running and you have a JWT token, configure this MCP server:
 
@@ -619,7 +595,7 @@ export WAGA_BASE_URL="http://localhost:3000/api/v1"  # Your gateway URL
 export WAGA_JWT_TOKEN="your_jwt_token_here"          # From gateway registration
 ```
 
-Then run the MCP server using Docker or from source (see Installation section above).
+Then run the MCP server using Docker (see [DOCKER_USAGE.md](DOCKER_USAGE.md)) or from source (see Installation section above).
 
 ## Dependencies
 
