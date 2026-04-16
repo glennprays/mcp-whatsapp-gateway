@@ -120,14 +120,10 @@ export MCP_TRANSPORT="stdio"  # or "http" for web clients
 
 #### Using Docker (Recommended)
 
-Pull the pre-built image from Docker Hub or GitHub Container Registry:
+Pull the pre-built image from Docker Hub:
 
 ```bash
-# Using Docker Hub
 docker pull glennprays/mcp-whatsapp-gateway:latest
-
-# Using GitHub Container Registry
-docker pull ghcr.io/glennprays/mcp-whatsapp-gateway:latest
 ```
 
 #### From Source (Development Only)
