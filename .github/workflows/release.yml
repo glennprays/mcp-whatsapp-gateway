@@ -86,7 +86,9 @@ jobs:
       # Fetch tags
       # --------------------------------------------------
       - name: Fetch tags
-        run: git fetch --tags
+        run: |
+          git fetch --tags
+          git fetch origin 'refs/tags/*:refs/tags/*'
 
       # --------------------------------------------------
       # Skip if commit already tagged
@@ -112,11 +114,21 @@ jobs:
       - name: Get latest tag
         id: latest
         run: |
-          TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+          # Get tags from both local and remote, sort by version
+          TAG=$(git tag -l 'v*' --sort=-version:refname 2>/dev/null | head -n 1)
+
+          # If no local tags, check remote
+          if [ -z "$TAG" ]; then
+            TAG=$(git ls-remote --tags origin | grep -E 'refs/tags/v[0-9]' | sed 's/.*refs\/tags\//' | sed 's/\^\^{}$//' | sort -V | tail -n 1)
+          fi
+
+          # Default to v0.0.0 if no tags found
           if [ -z "$TAG" ]; then
             TAG="v0.0.0"
           fi
+
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $TAG"
 
       # --------------------------------------------------
       # Calculate next version
@@ -154,11 +166,23 @@ jobs:
         id: tag_exists
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
+
+          # Check local tags
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
             echo "EXISTS=true" >> $GITHUB_OUTPUT
-          else
-            echo "EXISTS=false" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION exists locally"
+            exit 0
           fi
+
+          # Check remote tags
+          if git ls-remote --tags origin | grep -q "refs/tags/$VERSION"; then
+            echo "EXISTS=true" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION exists remotely"
+            exit 0
+          fi
+
+          echo "EXISTS=false" >> $GITHUB_OUTPUT
+          echo "Tag $VERSION does not exist"
 
       - name: Exit if tag exists
         if: steps.tag_exists.outputs.EXISTS == 'true'
