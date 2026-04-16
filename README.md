@@ -42,8 +42,8 @@ This MCP server acts as a **bridge between AI agents and the WhatsApp Gateway**:
 Before using this MCP server, you need:
 
 1. **Running WhatsApp Gateway instance**
-   - Clone and deploy: https://github.com/glennprays/whatsapp-gateway
-   - Follow the gateway's setup instructions
+   - Follow the setup guide at: https://waga.glennprays.com
+   - Deploy the gateway service (Docker, binary, or cloud)
    - Ensure it's accessible via HTTP/HTTPS
 
 2. **JWT Token from Gateway**
@@ -113,13 +113,24 @@ export MCP_TRANSPORT="stdio"  # or "http" for web clients
 
 ### Prerequisites
 
-- Go 1.25 or later
-- A running instance of [WhatsApp Gateway](https://github.com/glennprays/whatsapp-gateway)
+- A running instance of WhatsApp Gateway (see https://waga.glennprays.com)
 - A JWT token for your WhatsApp account (obtained from the gateway)
 
 ### Installation
 
-#### From Source
+#### Using Docker (Recommended)
+
+Pull the pre-built image from Docker Hub or GitHub Container Registry:
+
+```bash
+# Using Docker Hub
+docker pull glennprays/mcp-whatsapp-gateway:latest
+
+# Using GitHub Container Registry
+docker pull ghcr.io/glennprays/mcp-whatsapp-gateway:latest
+```
+
+#### From Source (Development Only)
 
 ```bash
 # Clone the repository
@@ -358,7 +369,34 @@ curl http://localhost:8080/mcp
 
 ## Docker Usage
 
-### Building
+### Using Pre-built Images (Recommended)
+
+```bash
+# Pull the latest image
+docker pull glennprays/mcp-whatsapp-gateway:latest
+
+# Run in development mode (no auth)
+docker run -p 8080:8080 \
+  -e WAGA_BASE_URL="http://host.docker.internal:3000/api/v1" \
+  -e WAGA_JWT_TOKEN="your_jwt_token" \
+  -e MCP_TRANSPORT="http" \
+  -e APP_ENV="development" \
+  glennprays/mcp-whatsapp-gateway:latest
+
+# Run in production mode (with auth)
+docker run -d --name whatsapp-gateway-mcp \
+  -p 8080:8080 \
+  -e WAGA_BASE_URL="https://your-gateway.com/api/v1" \
+  -e WAGA_JWT_TOKEN="your_jwt_token" \
+  -e MCP_TRANSPORT="http" \
+  -e APP_ENV="production" \
+  -e MCP_BASIC_AUTH_USER="admin" \
+  -e MCP_BASIC_AUTH_PASSWORD="your_secure_password" \
+  --restart unless-stopped \
+  glennprays/mcp-whatsapp-gateway:latest
+```
+
+### Building from Source (Development Only)
 
 ```bash
 docker build -t mcp-whatsapp-gateway .
@@ -502,52 +540,18 @@ docker run -p 8080:8080 \
 
 ## Getting Started with WhatsApp Gateway
 
-To use this MCP server, you first need to set up the WhatsApp Gateway:
+This MCP server requires a running WhatsApp Gateway instance. For detailed setup instructions, deployment options, and configuration guidance, visit:
 
-### 1. Clone and Deploy WhatsApp Gateway
+**📖 WhatsApp Gateway Documentation:** https://waga.glennprays.com
 
-```bash
-git clone https://github.com/glennprays/whatsapp-gateway.git
-cd whatsapp-gateway
-
-# Follow the setup instructions in the gateway's README
-# This typically involves:
-# - Installing dependencies (Go, WhatsApp requirements)
-# - Configuring environment variables
-# - Building and running the gateway server
-```
-
-### 2. Register Your Phone Number
-
-Once the gateway is running, register your WhatsApp phone number:
-
-```bash
-# The gateway will provide a QR code or pair code
-# Scan it with WhatsApp to authenticate
-# After successful registration, you'll receive a JWT token
-```
-
-### 3. Configure MCP Server
-
-Use the gateway URL and JWT token to configure this MCP server:
+Once your gateway is running and you have a JWT token, configure this MCP server:
 
 ```bash
 export WAGA_BASE_URL="http://localhost:3000/api/v1"  # Your gateway URL
-export WAGA_JWT_TOKEN="your_jwt_token_here"          # From step 2
-./mcp-whatsapp-gateway
+export WAGA_JWT_TOKEN="your_jwt_token_here"          # From gateway registration
 ```
 
-### 4. Test the Connection
-
-```bash
-# Test if the MCP server can reach the gateway
-# The MCP server performs a health check on startup
-# You should see: "Gateway health check passed: status=ok"
-```
-
-**Documentation**: For detailed WhatsApp Gateway setup instructions, visit:
-- GitHub: https://github.com/glennprays/whatsapp-gateway
-- Documentation: https://waga.glennprays.com
+Then run the MCP server using Docker or from source (see Installation section above).
 
 ## Dependencies
 
