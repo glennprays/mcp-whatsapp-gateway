@@ -14,7 +14,7 @@ jobs:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -61,3 +61,24 @@ jobs:
           tags: |
             ${{ vars.DOCKER_IMAGE }}:${{ steps.tag.outputs.VERSION }}
             ${{ vars.DOCKER_IMAGE }}:latest
+
+      - name: Update Docker Hub repository description
+        run: |
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # Extract description from README (first paragraph after title)
+          DESCRIPTION=$(sed -n '3p' README.md)
+
+          # Read README and escape for JSON
+          README_CONTENT=$(cat README.md | jq -Rs .)
+
+          # Update Docker Hub repository using API
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.DOCKERHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"description\": \"$DESCRIPTION\",
+              \"full_description\": $README_CONTENT
+            }" \
+            "https://hub.docker.com/v2/repositories/${{ vars.DOCKER_IMAGE }}/"
