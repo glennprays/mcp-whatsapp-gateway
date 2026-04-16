@@ -1,15 +1,13 @@
 package gateway
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/config"
+	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
 const (
@@ -36,10 +34,10 @@ type GatewayClient interface {
 	DeleteWebhook(ctx context.Context) error
 }
 
-// Client implements GatewayClient interface
+// Client wraps the WhatsApp Gateway SDK client
 type Client struct {
-	config     *config.Config
-	httpClient *http.Client
+	client *waga.Client
+	config *config.Config
 }
 
 // New creates a new gateway client from the provided configuration
@@ -48,225 +46,145 @@ func New(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
+	// Initialize the gateway SDK client with base URL and JWT token
+	client := waga.NewClient(
+		waga.WithBaseURL(cfg.WagaBaseURL),
+		waga.WithToken(cfg.WagaJWTToken),
+		waga.WithTimeout(DefaultTimeout),
+	)
+
 	return &Client{
+		client: client,
 		config: cfg,
-		httpClient: &http.Client{
-			Timeout: DefaultTimeout,
-		},
 	}, nil
 }
 
-// NewWithHTTPClient creates a new gateway client with a custom HTTP client
-func NewWithHTTPClient(cfg *config.Config, httpClient *http.Client) (*Client, error) {
+// NewWithClient creates a new gateway client with a custom SDK client
+func NewWithClient(cfg *config.Config, sdkClient *waga.Client) (*Client, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	if httpClient == nil {
-		return nil, fmt.Errorf("http client cannot be nil")
+	if sdkClient == nil {
+		return nil, fmt.Errorf("SDK client cannot be nil")
 	}
 
 	return &Client{
-		config:     cfg,
-		httpClient: httpClient,
+		client: sdkClient,
+		config: cfg,
 	}, nil
 }
 
-// makeRequest makes an HTTP request to the gateway with proper authentication
-func (c *Client) makeRequest(ctx context.Context, method, path string, body io.Reader, response interface{}) error {
-	url := c.config.WagaBaseURL + path
-
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add authorization header
-	req.Header.Set("Authorization", "Bearer "+c.config.WagaJWTToken)
-
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("gateway returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	if response != nil {
-		if err := json.Unmarshal(respBody, response); err != nil {
-			return fmt.Errorf("failed to parse response: %w", err)
-		}
-	}
-
-	return nil
+// GetClient returns the underlying WhatsApp Gateway SDK client
+func (c *Client) GetClient() *waga.Client {
+	return c.client
 }
 
-// SendMessage sends a text message to the specified recipient
+// SendText sends a text message to the specified recipient
 func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error) {
-	reqBody := map[string]interface{}{
-		"msisdn":  msisdn,
-		"message": message,
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	resp, err := c.client.SendText(ctx, msisdn, message)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
 
-	var response SendMessageResponse
-	if err := c.makeRequest(ctx, http.MethodPost, "/message/text", bytes.NewReader(jsonBody), &response); err != nil {
-		return nil, err
-	}
-
-	return &response, nil
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+	}, nil
 }
 
 // SendImage sends an image message to the specified recipient
 func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error) {
-	// For image uploads, we need to use multipart/form-data
-	// This is a simplified placeholder implementation
-	// In production, you would use multipart.Writer to properly handle image uploads
-	_ = msisdn  // Will be used in multipart form data
-	_ = image   // Will be used in multipart form data
-	_ = caption // Will be used in multipart form data
-	_ = isViewOnce // Will be used in multipart form data
+	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send image message: %w", err)
+	}
 
-	// TODO: Implement proper multipart/form-data upload
 	return &SendMessageResponse{
-		Success:   true,
-		MessageID: "placeholder_message_id",
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
 	}, nil
 }
 
 // EditMessage edits a previously sent message
 func (c *Client) EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error {
-	reqBody := map[string]interface{}{
-		"msisdn":     msisdn,
-		"message_id": messageID,
-		"new_message": newMessage,
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	err := c.client.EditMessage(ctx, msisdn, messageID, newMessage)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to edit message: %w", err)
 	}
-
-	return c.makeRequest(ctx, http.MethodPut, "/message", bytes.NewReader(jsonBody), nil)
+	return nil
 }
 
 // DeleteMessage deletes a previously sent message
 func (c *Client) DeleteMessage(ctx context.Context, msisdn, messageID string) error {
-	reqBody := map[string]interface{}{
-		"msisdn":     msisdn,
-		"message_id": messageID,
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	err := c.client.DeleteMessage(ctx, msisdn, messageID)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to delete message: %w", err)
 	}
-
-	return c.makeRequest(ctx, http.MethodDelete, "/message", bytes.NewReader(jsonBody), nil)
+	return nil
 }
 
 // ReactToMessage reacts to a message with an emoji
 func (c *Client) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error {
-	reqBody := map[string]interface{}{
-		"msisdn":     msisdn,
-		"message_id": messageID,
-		"emoji":      emoji,
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	err := c.client.React(ctx, msisdn, messageID, emoji)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to react to message: %w", err)
 	}
-
-	return c.makeRequest(ctx, http.MethodPost, "/message/react", bytes.NewReader(jsonBody), nil)
+	return nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated
 func (c *Client) GetLoginStatus(ctx context.Context) (*LoginStatus, error) {
-	var status LoginStatus
-	if err := c.makeRequest(ctx, http.MethodGet, "/login/status", nil, &status); err != nil {
-		return nil, err
+	status, err := c.client.GetLoginStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get login status: %w", err)
 	}
-	return &status, nil
+
+	return &LoginStatus{
+		Authenticated: status.Authenticated,
+	}, nil
 }
 
 // Health checks if the gateway is reachable
 func (c *Client) Health(ctx context.Context) (*HealthResponse, error) {
-	url := c.config.WagaBaseURL + "/health"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	health, err := c.client.Health(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to check gateway health: %w", err)
 	}
 
-	// Health endpoint doesn't require authentication
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("gateway returned status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var health HealthResponse
-	if err := json.Unmarshal(respBody, &health); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return &health, nil
+	return &HealthResponse{
+		Status:    health.Status,
+		Timestamp: health.Timestamp,
+	}, nil
 }
 
 // GetWebhook retrieves the currently registered webhook
 func (c *Client) GetWebhook(ctx context.Context) (*WebhookResponse, error) {
-	var webhook WebhookResponse
-	if err := c.makeRequest(ctx, http.MethodGet, "/webhook", nil, &webhook); err != nil {
-		return nil, err
+	webhook, err := c.client.GetWebhook(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get webhook: %w", err)
 	}
-	return &webhook, nil
+
+	return &WebhookResponse{
+		URL: webhook.URL,
+	}, nil
 }
 
 // RegisterWebhook registers a webhook URL for incoming message notifications
 func (c *Client) RegisterWebhook(ctx context.Context, url, hmacSecret string) error {
-	reqBody := map[string]interface{}{
-		"url": url,
-	}
-
-	if hmacSecret != "" {
-		reqBody["hmac_secret"] = hmacSecret
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
+	err := c.client.RegisterWebhook(ctx, url, hmacSecret)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to register webhook: %w", err)
 	}
-
-	return c.makeRequest(ctx, http.MethodPost, "/webhook", bytes.NewReader(jsonBody), nil)
+	return nil
 }
 
 // DeleteWebhook removes the currently registered webhook
 func (c *Client) DeleteWebhook(ctx context.Context) error {
-	return c.makeRequest(ctx, http.MethodDelete, "/webhook", nil, nil)
+	err := c.client.UnregisterWebhook(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete webhook: %w", err)
+	}
+	return nil
 }
 
 // CheckHealth is a convenience method that returns nil if healthy, error otherwise
@@ -280,7 +198,7 @@ func (c *Client) IsHealthy(ctx context.Context) bool {
 	return c.CheckHealth(ctx) == nil
 }
 
-// Response types
+// Response types - these wrap the SDK types for consistency
 
 // SendMessageResponse represents the response from sending a message
 type SendMessageResponse struct {
