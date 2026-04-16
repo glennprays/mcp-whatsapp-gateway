@@ -25,20 +25,29 @@ func TestLoad_Success(t *testing.T) {
 	}
 
 	// Check defaults
-	if cfg.AppEnv != defaultAppEnv {
-		t.Errorf("Expected default AppEnv '%s', got '%s'", defaultAppEnv, cfg.AppEnv)
+	if cfg.AppEnv != Dev {
+		t.Errorf("Expected default AppEnv '%s', got '%s'", Dev, cfg.AppEnv)
 	}
 
-	if cfg.LogLevel != defaultLogLevel {
-		t.Errorf("Expected default LogLevel '%s', got '%s'", defaultLogLevel, cfg.LogLevel)
+	if cfg.LogLevel != "info" {
+		t.Errorf("Expected default LogLevel 'info', got '%s'", cfg.LogLevel)
 	}
 
-	if cfg.Transport != defaultTransport {
-		t.Errorf("Expected default Transport '%s', got '%s'", defaultTransport, cfg.Transport)
+	if cfg.Transport != "stdio" {
+		t.Errorf("Expected default Transport 'stdio', got '%s'", cfg.Transport)
 	}
 
-	if cfg.Port != defaultPort {
-		t.Errorf("Expected default Port '%s', got '%s'", defaultPort, cfg.Port)
+	if cfg.Port != "8080" {
+		t.Errorf("Expected default Port '8080', got '%s'", cfg.Port)
+	}
+
+	// WagaBaseURL and WagaJWTToken should be set from env vars (no defaults)
+	if cfg.WagaBaseURL == "" {
+		t.Error("WagaBaseURL should not be empty (required field)")
+	}
+
+	if cfg.WagaJWTToken == "" {
+		t.Error("WagaJWTToken should not be empty (required field)")
 	}
 }
 
@@ -123,7 +132,7 @@ func TestLoad_InvalidLogLevel(t *testing.T) {
 func TestLoad_ProdHTTP_MissingBasicAuth(t *testing.T) {
 	os.Setenv("WAGA_BASE_URL", "http://localhost:3000/api/v1")
 	os.Setenv("WAGA_JWT_TOKEN", "test-token")
-	os.Setenv("APP_ENV", "prod")
+	os.Setenv("APP_ENV", "production")
 	os.Setenv("MCP_TRANSPORT", "http")
 	os.Unsetenv("MCP_BASIC_AUTH_USER")
 	os.Unsetenv("MCP_BASIC_AUTH_PASSWORD")
@@ -134,7 +143,7 @@ func TestLoad_ProdHTTP_MissingBasicAuth(t *testing.T) {
 		t.Fatal("Expected error when Basic Auth is missing in prod+http mode, got nil")
 	}
 
-	if !containsString(err.Error(), "missing Basic Auth credentials") {
+	if !containsString(err.Error(), "MCP_BASIC_AUTH_USER and MCP_BASIC_AUTH_PASSWORD are required") {
 		t.Errorf("Expected error about missing Basic Auth, got: %v", err)
 	}
 }
@@ -142,7 +151,7 @@ func TestLoad_ProdHTTP_MissingBasicAuth(t *testing.T) {
 func TestLoad_ProdHTTP_WithBasicAuth(t *testing.T) {
 	os.Setenv("WAGA_BASE_URL", "http://localhost:3000/api/v1")
 	os.Setenv("WAGA_JWT_TOKEN", "test-token")
-	os.Setenv("APP_ENV", "prod")
+	os.Setenv("APP_ENV", "production")
 	os.Setenv("MCP_TRANSPORT", "http")
 	os.Setenv("MCP_BASIC_AUTH_USER", "admin")
 	os.Setenv("MCP_BASIC_AUTH_PASSWORD", "secret")
@@ -187,11 +196,11 @@ func TestLoad_AllValidLogLevels(t *testing.T) {
 func TestConfig_IsProduction(t *testing.T) {
 	tests := []struct {
 		name     string
-		appEnv   string
+		appEnv   Environment
 		expected bool
 	}{
-		{"production", "prod", true},
-		{"development", "dev", false},
+		{"production", Prod, true},
+		{"development", Dev, false},
 	}
 
 	for _, tt := range tests {
@@ -207,11 +216,11 @@ func TestConfig_IsProduction(t *testing.T) {
 func TestConfig_IsDevelopment(t *testing.T) {
 	tests := []struct {
 		name     string
-		appEnv   string
+		appEnv   Environment
 		expected bool
 	}{
-		{"development", "dev", true},
-		{"production", "prod", false},
+		{"development", Dev, true},
+		{"production", Prod, false},
 	}
 
 	for _, tt := range tests {

@@ -1,83 +1,94 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
+
+	"github.com/creasty/defaults"
+	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
+
+// Environment represents the application environment
+type Environment string
+
+const (
+	// Dev is the development environment
+	Dev Environment = "development"
+	// Prod is the production environment
+	Prod Environment = "production"
+)
+
+// String returns the string representation of the environment
+func (e Environment) String() string {
+	return string(e)
+}
 
 // Config holds all configuration loaded from environment variables
 type Config struct {
 	// WhatsApp Gateway Configuration
-	WagaBaseURL  string
-	WagaJWTToken string
+	WagaBaseURL  string `mapstructure:"WAGA_BASE_URL"`
+	WagaJWTToken string `mapstructure:"WAGA_JWT_TOKEN"`
 
 	// Application Configuration
-	AppEnv   string
-	LogLevel string
+	AppEnv   Environment `mapstructure:"APP_ENV" default:"development"`
+	LogLevel string      `mapstructure:"LOG_LEVEL" default:"info"`
 
 	// MCP Server Configuration
-	Transport string
-	Port      string
+	Transport string `mapstructure:"MCP_TRANSPORT" default:"stdio"`
+	Port      string `mapstructure:"MCP_PORT" default:"8080"`
 
 	// HTTP+SSE Authentication (prod only)
-	BasicAuthUser     string
-	BasicAuthPassword string
+	BasicAuthUser     string `mapstructure:"MCP_BASIC_AUTH_USER" default:""`
+	BasicAuthPassword string `mapstructure:"MCP_BASIC_AUTH_PASSWORD" default:""`
 }
-
-const (
-	// Environment Constants
-	defaultAppEnv   = "dev"
-	defaultLogLevel = "info"
-	defaultTransport = "stdio"
-	defaultPort      = "8080"
-
-	// Valid Environment Values
-	envDev  = "dev"
-	envProd = "prod"
-
-	// Valid Transport Values
-	transportStdio = "stdio"
-	transportHTTP  = "http"
-
-	// Valid Log Levels
-	logDebug = "debug"
-	logInfo  = "info"
-	logWarn  = "warn"
-	logError = "error"
-)
-
-var (
-	// ErrMissingRequiredConfig is returned when required configuration is missing
-	ErrMissingRequiredConfig = errors.New("missing required configuration")
-
-	// ErrInvalidAppEnv is returned when APP_ENV has an invalid value
-	ErrInvalidAppEnv = errors.New("invalid APP_ENV value")
-
-	// ErrInvalidTransport is returned when MCP_TRANSPORT has an invalid value
-	ErrInvalidTransport = errors.New("invalid MCP_TRANSPORT value")
-
-	// ErrInvalidLogLevel is returned when LOG_LEVEL has an invalid value
-	ErrInvalidLogLevel = errors.New("invalid LOG_LEVEL value")
-
-	// ErrMissingBasicAuth is returned when Basic Auth credentials are missing in prod+http mode
-	ErrMissingBasicAuth = errors.New("missing Basic Auth credentials for production HTTP+SSE mode")
-)
 
 // Load reads configuration from environment variables and validates it
 func Load() (*Config, error) {
-	cfg := &Config{
-		WagaBaseURL:        os.Getenv("WAGA_BASE_URL"),
-		WagaJWTToken:       os.Getenv("WAGA_JWT_TOKEN"),
-		AppEnv:            getEnvWithDefault("APP_ENV", defaultAppEnv),
-		LogLevel:          getEnvWithDefault("LOG_LEVEL", defaultLogLevel),
-		Transport:         getEnvWithDefault("MCP_TRANSPORT", defaultTransport),
-		Port:              getEnvWithDefault("MCP_PORT", defaultPort),
-		BasicAuthUser:     os.Getenv("MCP_BASIC_AUTH_USER"),
-		BasicAuthPassword: os.Getenv("MCP_BASIC_AUTH_PASSWORD"),
+	// Create config instance
+	cfg := &Config{}
+
+	// Apply defaults from struct tags
+	if err := defaults.Set(cfg); err != nil {
+		return nil, fmt.Errorf("failed to set defaults: %w", err)
 	}
 
+	// Load .env file if it exists
+	_ = godotenv.Load()
+
+	// Get environment from ENV variable
+	envStr := strings.ToLower(os.Getenv("APP_ENV"))
+	env := Environment(envStr)
+	if env == "" {
+		env = Dev
+	}
+
+	// Configure Viper to read from environment variables
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// Auto-bind each struct field by key
+	t := reflect.TypeOf(cfg).Elem()
+	for i := range t.NumField() {
+		field := t.Field(i)
+		key := field.Tag.Get("mapstructure")
+		if key != "" {
+			err := viper.BindEnv(key)
+			if err != nil {
+				return nil, fmt.Errorf("failed to bind env key %s: %w", key, err)
+			}
+		}
+	}
+
+	// Unmarshal environment variables into config
+	// This will override defaults with actual env values
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Validate configuration
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
@@ -89,32 +100,32 @@ func Load() (*Config, error) {
 func (c *Config) validate() error {
 	// Check required configuration
 	if c.WagaBaseURL == "" {
-		return fmt.Errorf("%w: WAGA_BASE_URL is required", ErrMissingRequiredConfig)
+		return fmt.Errorf("missing required configuration: WAGA_BASE_URL is required")
 	}
 
 	if c.WagaJWTToken == "" {
-		return fmt.Errorf("%w: WAGA_JWT_TOKEN is required", ErrMissingRequiredConfig)
+		return fmt.Errorf("missing required configuration: WAGA_JWT_TOKEN is required")
 	}
 
 	// Validate APP_ENV
-	if !isValidAppEnv(c.AppEnv) {
-		return fmt.Errorf("%w: %s (must be 'dev' or 'prod')", ErrInvalidAppEnv, c.AppEnv)
+	if !isValidAppEnv(string(c.AppEnv)) {
+		return fmt.Errorf("invalid APP_ENV value: %s (must be 'development' or 'production')", c.AppEnv)
 	}
 
 	// Validate Transport
 	if !isValidTransport(c.Transport) {
-		return fmt.Errorf("%w: %s (must be 'stdio' or 'http')", ErrInvalidTransport, c.Transport)
+		return fmt.Errorf("invalid MCP_TRANSPORT value: %s (must be 'stdio' or 'http')", c.Transport)
 	}
 
 	// Validate LogLevel
 	if !isValidLogLevel(c.LogLevel) {
-		return fmt.Errorf("%w: %s (must be 'debug', 'info', 'warn', or 'error')", ErrInvalidLogLevel, c.LogLevel)
+		return fmt.Errorf("invalid LOG_LEVEL value: %s (must be 'debug', 'info', 'warn', or 'error')", c.LogLevel)
 	}
 
 	// Validate Basic Auth for prod+http
-	if c.AppEnv == envProd && c.Transport == transportHTTP {
+	if c.AppEnv == Prod && c.Transport == "http" {
 		if c.BasicAuthUser == "" || c.BasicAuthPassword == "" {
-			return fmt.Errorf("%w: MCP_BASIC_AUTH_USER and MCP_BASIC_AUTH_PASSWORD are required when APP_ENV=prod and MCP_TRANSPORT=http", ErrMissingBasicAuth)
+			return fmt.Errorf("missing required configuration: MCP_BASIC_AUTH_USER and MCP_BASIC_AUTH_PASSWORD are required when APP_ENV=production and MCP_TRANSPORT=http")
 		}
 	}
 
@@ -123,22 +134,22 @@ func (c *Config) validate() error {
 
 // IsProduction returns true if the application is running in production mode
 func (c *Config) IsProduction() bool {
-	return c.AppEnv == envProd
+	return c.AppEnv == Prod
 }
 
 // IsDevelopment returns true if the application is running in development mode
 func (c *Config) IsDevelopment() bool {
-	return c.AppEnv == envDev
+	return c.AppEnv == Dev
 }
 
 // IsStdioTransport returns true if the transport is stdio
 func (c *Config) IsStdioTransport() bool {
-	return c.Transport == transportStdio
+	return c.Transport == "stdio"
 }
 
 // IsHTTPTransport returns true if the transport is HTTP+SSE
 func (c *Config) IsHTTPTransport() bool {
-	return c.Transport == transportHTTP
+	return c.Transport == "http"
 }
 
 // GetLogLevel returns the log level as a string
@@ -153,28 +164,20 @@ func (c *Config) GetPort() string {
 
 // Helper functions
 
-// getEnvWithDefault returns the environment variable value or a default if not set
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 // isValidAppEnv checks if the app environment value is valid
 func isValidAppEnv(env string) bool {
-	return env == envDev || env == envProd
+	return env == string(Dev) || env == string(Prod)
 }
 
 // isValidTransport checks if the transport value is valid
 func isValidTransport(transport string) bool {
-	return transport == transportStdio || transport == transportHTTP
+	return transport == "stdio" || transport == "http"
 }
 
 // isValidLogLevel checks if the log level value is valid
 func isValidLogLevel(level string) bool {
 	switch strings.ToLower(level) {
-	case logDebug, logInfo, logWarn, logError:
+	case "debug", "info", "warn", "error":
 		return true
 	default:
 		return false
