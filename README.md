@@ -2,8 +2,9 @@
 
 A Model Context Protocol (MCP) server that exposes the [WhatsApp Gateway (waga)](https://waga.glennprays.com) as tools for AI agents. This allows Claude and other AI agents to send WhatsApp messages, manage webhooks, and check connection status through a pre-authenticated JWT session.
 
-**📖 Documentation:**
-- **[DOCKER_USAGE.md](DOCKER_USAGE.md)** - Comprehensive Docker deployment guide
+** Documentation:**
+- **[WhatsApp Gateway MCP Documentation](https://waga.glennprays.com/#docs:mcp/introduction)** - Main comprehensive documentation
+- **[DOCKER_USAGE.md](DOCKER_USAGE.md)** - Docker deployment guide
 - **[README.md](#quick-start)** - Quick start and overview (this file)
 
 ## What is WhatsApp Gateway?
@@ -45,6 +46,8 @@ This MCP server acts as a **bridge between AI agents and the WhatsApp Gateway**:
 
 Before using this MCP server, you need:
 
+> ** For detailed setup instructions, see the [comprehensive documentation](https://waga.glennprays.com/#docs:mcp/introduction)**
+
 1. **Running WhatsApp Gateway instance**
    - Follow the setup guide at: https://waga.glennprays.com
    - Deploy the gateway service (Docker, binary, or cloud)
@@ -79,6 +82,8 @@ Before using this MCP server, you need:
 
 ## Quick Start
 
+> ** For comprehensive setup and configuration guide, see the [main documentation](https://waga.glennprays.com/#docs:mcp/introduction)**
+
 ### 1. Pull the Docker Image
 
 ```bash
@@ -105,7 +110,7 @@ docker run -d --name whatsapp-gateway-mcp \
   glennprays/mcp-whatsapp-gateway:latest
 ```
 
-> **📖 For comprehensive Docker deployment guide, transport options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+> ** For comprehensive Docker deployment guide, transport options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 ### 3. Configure Your MCP Client
 
@@ -123,7 +128,7 @@ Pull the pre-built image from Docker Hub:
 docker pull glennprays/mcp-whatsapp-gateway:latest
 ```
 
-> **💡 For detailed Docker setup, deployment options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+> ** For detailed Docker setup, deployment options, and production configuration, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 ### From Source (Development Only)
 
@@ -278,7 +283,7 @@ WAGA_JWT_TOKEN="your_jwt_token" \
 }
 ```
 
-> **💡 For Docker deployment options, transport configuration, and production setup, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
+> ** For Docker deployment options, transport configuration, and production setup, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 #### Claude Code CLI
 
@@ -452,7 +457,7 @@ For comprehensive Docker deployment instructions including:
 - Environment variable reference
 - Troubleshooting Docker-specific issues
 
-**📖 See the complete [DOCKER_USAGE.md](DOCKER_USAGE.md) guide**
+** See the complete [DOCKER_USAGE.md](DOCKER_USAGE.md) guide**
 
 ### Quick Docker Commands
 
@@ -582,11 +587,13 @@ docker run -p 8080:8080 \
 
 This MCP server requires a running WhatsApp Gateway instance.
 
-**For detailed WhatsApp Gateway setup instructions, deployment options, and configuration:**
+** For comprehensive WhatsApp Gateway MCP setup, configuration, and usage documentation:**
+- **[Main Documentation](https://waga.glennprays.com/#docs:mcp/introduction)** - Complete guide for MCP integration
+- **[Docker Deployment Guide](DOCKER_USAGE.md)** - Docker-specific deployment instructions
+
+**Additional Resources:**
 - **WhatsApp Gateway Documentation:** https://waga.glennprays.com
 - **GitHub Repository:** https://github.com/glennprays/whatsapp-gateway
-
-**For Docker deployment of this MCP server, see [DOCKER_USAGE.md](DOCKER_USAGE.md)**
 
 Once your gateway is running and you have a JWT token, configure this MCP server:
 
@@ -627,6 +634,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues and questions:
+** For comprehensive documentation, guides, and troubleshooting:**
+- **[Main Documentation](https://waga.glennprays.com/#docs:mcp/introduction)** - Complete MCP integration guide
+- **[Docker Deployment Guide](DOCKER_USAGE.md)** - Docker-specific instructions
+
+**For issues and questions:**
 - GitHub Issues: [Create an issue](https://github.com/glennprays/mcp-whatsapp-gateway/issues)
 - WhatsApp Gateway Documentation: https://waga.glennprays.com
