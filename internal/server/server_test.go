@@ -7,6 +7,7 @@ import (
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/config"
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
+	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
 // mockGatewayClient is a simple mock for testing
@@ -50,6 +51,10 @@ func (m *mockGatewayClient) RegisterWebhook(ctx context.Context, url, hmacSecret
 
 func (m *mockGatewayClient) DeleteWebhook(ctx context.Context) error {
 	return nil
+}
+
+func (m *mockGatewayClient) GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+	return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
 }
 
 func TestNewStdioServer_Success(t *testing.T) {

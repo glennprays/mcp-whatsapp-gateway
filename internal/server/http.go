@@ -53,6 +53,11 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, createReactToMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_latest_incoming_messages",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+	}, createGetLatestIncomingMessagesHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
 		Description: "Check if the WhatsApp session is active and authenticated",
 	}, createCheckConnectionStatusHandler(gatewayClient))

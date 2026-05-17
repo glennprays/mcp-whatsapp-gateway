@@ -60,6 +60,12 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Description: "React to a message with an emoji",
 	}, createReactToMessageHandler(gatewayClient))
 
+	// Register inbox tools
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_latest_incoming_messages",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+	}, createGetLatestIncomingMessagesHandler(gatewayClient))
+
 	// Register connection tools
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
@@ -163,6 +169,20 @@ func createReactToMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHa
 			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
 		}
 		result, err := tools.ReactToMessageDirect(client, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createGetLatestIncomingMessagesHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetLatestIncomingMessagesInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetLatestIncomingMessagesInput) (*mcp.CallToolResult, any, error) {
+		client := globalGatewayClient
+		if client == nil {
+			return nil, nil, fmt.Errorf("gateway client not available (global is nil)")
+		}
+		result, err := tools.GetLatestIncomingMessagesDirect(client, input)
 		if err != nil {
 			return nil, nil, err
 		}

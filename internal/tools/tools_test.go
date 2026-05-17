@@ -7,20 +7,22 @@ import (
 	"testing"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
+	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
 // MockGatewayClient is a mock implementation of GatewayClient for testing
 type MockGatewayClient struct {
-	SendTextFunc       func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error)
-	SendImageFunc      func(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error)
-	EditMessageFunc    func(ctx context.Context, msisdn, messageID, newMessage string) error
-	DeleteMessageFunc  func(ctx context.Context, msisdn, messageID string) error
-	ReactToMessageFunc func(ctx context.Context, msisdn, messageID, emoji string) error
-	GetLoginStatusFunc func(ctx context.Context) (*gateway.LoginStatus, error)
-	HealthFunc         func(ctx context.Context) (*gateway.HealthResponse, error)
-	GetWebhookFunc     func(ctx context.Context) (*gateway.WebhookResponse, error)
-	RegisterWebhookFunc func(ctx context.Context, url, hmacSecret string) error
-	DeleteWebhookFunc  func(ctx context.Context) error
+	SendTextFunc            func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error)
+	SendImageFunc           func(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error)
+	EditMessageFunc         func(ctx context.Context, msisdn, messageID, newMessage string) error
+	DeleteMessageFunc       func(ctx context.Context, msisdn, messageID string) error
+	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string) error
+	GetIncomingMessagesFunc func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
+	GetLoginStatusFunc      func(ctx context.Context) (*gateway.LoginStatus, error)
+	HealthFunc              func(ctx context.Context) (*gateway.HealthResponse, error)
+	GetWebhookFunc          func(ctx context.Context) (*gateway.WebhookResponse, error)
+	RegisterWebhookFunc     func(ctx context.Context, url, hmacSecret string) error
+	DeleteWebhookFunc       func(ctx context.Context) error
 }
 
 func (m *MockGatewayClient) SendText(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error) {
@@ -91,6 +93,13 @@ func (m *MockGatewayClient) DeleteWebhook(ctx context.Context) error {
 		return m.DeleteWebhookFunc(ctx)
 	}
 	return nil
+}
+
+func (m *MockGatewayClient) GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+	if m.GetIncomingMessagesFunc != nil {
+		return m.GetIncomingMessagesFunc(ctx, limit)
+	}
+	return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
 }
 
 // Test SendTextMessage
@@ -806,5 +815,92 @@ func TestDeleteWebhook_GatewayError(t *testing.T) {
 	_, _, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
 	if err == nil {
 		t.Fatal("Expected error from gateway")
+	}
+}
+
+// Test GetLatestIncomingMessages
+
+func TestGetLatestIncomingMessages_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetIncomingMessagesFunc: func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+			if limit != 5 {
+				t.Errorf("expected limit=5, got %d", limit)
+			}
+			return &waga.IncomingMessagesResponse{
+				Success:   true,
+				Timestamp: 1715900000000,
+				Count:     2,
+				Messages: []waga.IncomingMessage{
+					{MessageId: "NEW", From: "6281@s.whatsapp.net", PushName: "Alice", Type: waga.IncomingMessageTypeText, Text: "Your code is 123456", Timestamp: 2},
+					{MessageId: "OLD", From: "6282@s.whatsapp.net", PushName: "Bob", Type: waga.IncomingMessageTypeText, Text: "hi", Timestamp: 1},
+				},
+			}, nil
+		},
+	}
+
+	result, err := GetLatestIncomingMessagesDirect(mockClient, GetLatestIncomingMessagesInput{Limit: 5})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Error("expected Success=true")
+	}
+	if result.Count != 2 {
+		t.Errorf("expected Count=2, got %d", result.Count)
+	}
+	if len(result.Messages) != 2 || result.Messages[0].MessageId != "NEW" {
+		t.Errorf("expected newest-first ordering, got %+v", result.Messages)
+	}
+}
+
+func TestGetLatestIncomingMessages_DefaultLimitPassthrough(t *testing.T) {
+	var capturedLimit int
+	mockClient := &MockGatewayClient{
+		GetIncomingMessagesFunc: func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+			capturedLimit = limit
+			return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
+		},
+	}
+
+	// Caller omits Limit — tool must pass 0 through; gateway is the trust boundary.
+	_, err := GetLatestIncomingMessagesDirect(mockClient, GetLatestIncomingMessagesInput{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedLimit != 0 {
+		t.Errorf("expected limit=0 (gateway substitutes default), got %d", capturedLimit)
+	}
+}
+
+func TestGetLatestIncomingMessages_Empty(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetIncomingMessagesFunc: func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+			return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
+		},
+	}
+
+	result, err := GetLatestIncomingMessagesDirect(mockClient, GetLatestIncomingMessagesInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Count != 0 || len(result.Messages) != 0 {
+		t.Errorf("expected empty response, got count=%d len=%d", result.Count, len(result.Messages))
+	}
+}
+
+func TestGetLatestIncomingMessages_GatewayError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetIncomingMessagesFunc: func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+			return nil, errors.New("gateway exploded")
+		},
+	}
+
+	_, err := GetLatestIncomingMessagesDirect(mockClient, GetLatestIncomingMessagesInput{Limit: 10})
+	if err == nil {
+		t.Fatal("expected error from gateway")
+	}
+	// Error should be tool-prefixed for triage clarity.
+	if got := err.Error(); got == "" || got[:len("get_latest_incoming_messages")] != "get_latest_incoming_messages" {
+		t.Errorf("expected error prefixed with tool name, got %q", got)
 	}
 }

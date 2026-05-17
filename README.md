@@ -356,6 +356,29 @@ React to a message with an emoji.
 
 **Returns:** Success status
 
+### Inbox Tools
+
+#### get_latest_incoming_messages
+Fetch the most recent incoming WhatsApp messages buffered by the gateway. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first.
+
+**Input:**
+- `limit` (integer, optional): Maximum number of messages to return. Defaults to 10. Clamped server-side to [1, 50].
+
+**Returns:**
+- `success` (boolean): True on a successful read.
+- `timestamp` (integer): Unix milliseconds when the response was generated.
+- `count` (integer): Number of messages returned.
+- `messages` (array): Each entry mirrors the webhook payload vocabulary:
+  - `message_id`, `from`, `chat`, `is_group`, `push_name`, `timestamp`
+  - `type`: one of `text` / `image` / `video` / `audio` / `document` / `sticker` / `contact` / `location` / `unknown`
+  - `text`: present for text messages
+  - `media`: object with `type`, `mime_type`, `size`, `file_name`, `caption` (metadata only — media URLs are not exposed by this tool; subscribe to webhooks if you need fetchable links)
+
+**Notes:**
+- The gateway keeps the most recent 100 incoming messages per session in memory. Buffer is lost on gateway restart — acceptable for short-lived OTP retrieval.
+- Messages from the user (`is_from_me`) are excluded.
+- `group_name` resolution is deferred — group messages return `is_group: true` and the group JID in `chat`.
+
 ### Connection Tools
 
 #### check_connection_status
