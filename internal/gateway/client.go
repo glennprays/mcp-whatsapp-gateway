@@ -24,6 +24,9 @@ type GatewayClient interface {
 	DeleteMessage(ctx context.Context, msisdn, messageID string) error
 	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error
 
+	// Read operations
+	GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
+
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
 	Health(ctx context.Context) (*HealthResponse, error)
@@ -130,6 +133,19 @@ func (c *Client) ReactToMessage(ctx context.Context, msisdn, messageID, emoji st
 		return fmt.Errorf("failed to react to message: %w", err)
 	}
 	return nil
+}
+
+// GetIncomingMessages fetches the most recent incoming WhatsApp messages
+// buffered by the gateway for the authenticated session, newest first.
+//
+// The limit caps the number of messages returned. If limit <= 0 the gateway
+// substitutes its default (10); values above 50 are clamped server-side.
+func (c *Client) GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error) {
+	resp, err := c.client.GetIncomingMessages(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get incoming messages: %w", err)
+	}
+	return resp, nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated
