@@ -3,11 +3,16 @@ package tools
 import (
 	"context"
 	"fmt"
-	"io"
+	"net/http"
+	"time"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
+	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// imageDownloadTimeout caps how long we'll wait fetching an image URL.
+const imageDownloadTimeout = 20 * time.Second
 
 // GetGatewayClient retrieves the gateway client from context or returns an error
 func GetGatewayClient(ctx context.Context) (gateway.GatewayClient, error) {
@@ -62,9 +67,9 @@ func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput)
 		return SendMessageResult{}, fmt.Errorf("message content is required")
 	}
 
-	// Send message via gateway
+	// Send message via gateway (normalize raw phone numbers to WhatsApp JID).
 	ctx := context.Background()
-	resp, err := client.SendText(ctx, input.To, input.Message)
+	resp, err := client.SendText(ctx, waga.FormatMSISDN(input.To), input.Message)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
 	}
@@ -117,15 +122,26 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("image URL is required")
 	}
 
-	// For now, use a placeholder reader
-	// In a real implementation, you would download the image from the URL
-	// This is a placeholder - image URL handling would go here
-	imageReader := io.NopCloser(nil)
-	_ = input.ImageURL // Will be used to download the image
+	// Fetch the image bytes from the provided URL. The SDK expects an
+	// io.Reader, so we stream the response body straight into it. The body
+	// is closed after the gateway upload finishes.
+	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	defer cancel()
 
-	// Send image via gateway
-	ctx := context.Background()
-	resp, err := client.SendImage(ctx, input.To, imageReader, input.Caption, input.ViewOnce)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.ImageURL, nil)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: invalid image URL: %w", err)
+	}
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: image URL returned %d", dlResp.StatusCode)
+	}
+
+	resp, err := client.SendImage(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.Caption, input.ViewOnce)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
@@ -188,7 +204,7 @@ func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (Ed
 
 	// Edit message via gateway
 	ctx := context.Background()
-	err := client.EditMessage(ctx, input.To, input.MessageID, input.NewMessage)
+	err := client.EditMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.NewMessage)
 	if err != nil {
 		return EditMessageResult{}, fmt.Errorf("edit_message: %w", err)
 	}
@@ -246,7 +262,7 @@ func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput)
 
 	// Delete message via gateway
 	ctx := context.Background()
-	err := client.DeleteMessage(ctx, input.To, input.MessageID)
+	err := client.DeleteMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID)
 	if err != nil {
 		return DeleteMessageResult{}, fmt.Errorf("delete_message: %w", err)
 	}
@@ -308,7 +324,7 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 
 	// React to message via gateway
 	ctx := context.Background()
-	err := client.ReactToMessage(ctx, input.To, input.MessageID, input.Emoji)
+	err := client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji)
 	if err != nil {
 		return ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
 	}
