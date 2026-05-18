@@ -55,6 +55,10 @@ jobs:
 
       # --------------------------------------------------
       # Determine release type from labels
+      #
+      # NOTE: `exit 0` inside a `run:` block only exits the script, not the
+      # job — subsequent steps still run. To actually skip, every later
+      # step has an `if:` guard reading the outputs set here.
       # --------------------------------------------------
       - name: Determine release type
         id: release
@@ -70,22 +74,23 @@ jobs:
             fi
           done
 
-          if [ "$COUNT" -eq 0 ]; then
-            echo "No release label found. Skipping."
-            exit 0
-          fi
-
           if [ "$COUNT" -gt 1 ]; then
             echo "Multiple release labels found. Failing."
             exit 1
           fi
 
-          echo "TYPE=$TYPE" >> $GITHUB_OUTPUT
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No release label found. Skipping."
+            echo "TYPE=" >> $GITHUB_OUTPUT
+          else
+            echo "TYPE=$TYPE" >> $GITHUB_OUTPUT
+          fi
 
       # --------------------------------------------------
       # Fetch tags
       # --------------------------------------------------
       - name: Fetch tags
+        if: steps.release.outputs.TYPE != ''
         run: |
           git fetch --tags
           git fetch origin 'refs/tags/*:refs/tags/*'
@@ -95,24 +100,21 @@ jobs:
       # --------------------------------------------------
       - name: Check if commit already tagged
         id: tagged
+        if: steps.release.outputs.TYPE != ''
         run: |
           if git tag --points-at HEAD | grep -q '^v'; then
             echo "ALREADY_TAGGED=true" >> $GITHUB_OUTPUT
+            echo "Commit already has a version tag. Skipping."
           else
             echo "ALREADY_TAGGED=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: Exit if already tagged
-        if: steps.tagged.outputs.ALREADY_TAGGED == 'true'
-        run: |
-          echo "Commit already has a version tag. Skipping."
-          exit 0
 
       # --------------------------------------------------
       # Determine latest tag
       # --------------------------------------------------
       - name: Get latest tag
         id: latest
+        if: steps.release.outputs.TYPE != '' && steps.tagged.outputs.ALREADY_TAGGED != 'true'
         run: |
           # Get tags from both local and remote, sort by version
           TAG=$(git tag -l 'v*' --sort=-version:refname 2>/dev/null | head -n 1)
@@ -135,6 +137,7 @@ jobs:
       # --------------------------------------------------
       - name: Calculate next version
         id: version
+        if: steps.release.outputs.TYPE != '' && steps.tagged.outputs.ALREADY_TAGGED != 'true'
         run: |
           RAW_TAG="${{ steps.latest.outputs.TAG }}"
           CLEAN_TAG="${RAW_TAG#v}"
@@ -164,36 +167,32 @@ jobs:
       # --------------------------------------------------
       - name: Check if tag already exists
         id: tag_exists
+        if: steps.release.outputs.TYPE != '' && steps.tagged.outputs.ALREADY_TAGGED != 'true'
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
 
           # Check local tags
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
             echo "EXISTS=true" >> $GITHUB_OUTPUT
-            echo "Tag $VERSION exists locally"
+            echo "Tag $VERSION exists locally. Skipping."
             exit 0
           fi
 
           # Check remote tags
           if git ls-remote --tags origin | grep -q "refs/tags/$VERSION"; then
             echo "EXISTS=true" >> $GITHUB_OUTPUT
-            echo "Tag $VERSION exists remotely"
+            echo "Tag $VERSION exists remotely. Skipping."
             exit 0
           fi
 
           echo "EXISTS=false" >> $GITHUB_OUTPUT
           echo "Tag $VERSION does not exist"
 
-      - name: Exit if tag exists
-        if: steps.tag_exists.outputs.EXISTS == 'true'
-        run: |
-          echo "Tag already exists. Skipping."
-          exit 0
-
       # --------------------------------------------------
       # Configure git identity
       # --------------------------------------------------
       - name: Configure git identity
+        if: steps.release.outputs.TYPE != '' && steps.tagged.outputs.ALREADY_TAGGED != 'true' && steps.tag_exists.outputs.EXISTS == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -202,6 +201,7 @@ jobs:
       # Create and push tag
       # --------------------------------------------------
       - name: Create and push tag
+        if: steps.release.outputs.TYPE != '' && steps.tagged.outputs.ALREADY_TAGGED != 'true' && steps.tag_exists.outputs.EXISTS == 'false'
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
           git tag -a "$VERSION" -m "Release $VERSION"
