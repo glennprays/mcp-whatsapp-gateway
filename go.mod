@@ -4,13 +4,11 @@ go 1.25.0
 
 require (
 	github.com/creasty/defaults v1.8.0
-	github.com/glennprays/whatsapp-gateway-sdk-go v0.2.0
+	github.com/glennprays/whatsapp-gateway-sdk-go v0.3.0
 	github.com/joho/godotenv v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/spf13/viper v1.21.0
 )
-
-replace github.com/glennprays/whatsapp-gateway-sdk-go => ../whatsapp-gateway-sdk-go
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
