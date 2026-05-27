@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
+	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
+
+const imageDownloadTimeout = 20 * time.Second
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
@@ -23,7 +27,6 @@ type SendMessageResult struct {
 
 // SendTextMessageDirect sends a text message
 func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput) (SendMessageResult, error) {
-	// Validate input
 	if input.To == "" {
 		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
@@ -31,20 +34,17 @@ func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput)
 		return SendMessageResult{}, fmt.Errorf("message content is required")
 	}
 
-	// Send message via gateway
 	ctx := context.Background()
-	resp, err := client.SendText(ctx, input.To, input.Message)
+	resp, err := client.SendText(ctx, waga.FormatMSISDN(input.To), input.Message)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
 	}
 
-	result := SendMessageResult{
+	return SendMessageResult{
 		Success:   resp.Success,
 		MessageID: resp.MessageID,
 		Status:    "sent",
-	}
-
-	return result, nil
+	}, nil
 }
 
 // SendImageInput represents the input for sending an image message
@@ -57,7 +57,6 @@ type SendImageInput struct {
 
 // SendImageMessageDirect sends an image message
 func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) (SendMessageResult, error) {
-	// Validate input
 	if input.To == "" {
 		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
@@ -65,29 +64,32 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("image URL is required")
 	}
 
-	resp, err := http.Get(input.ImageURL)
+	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.ImageURL, nil)
 	if err != nil {
-		return SendMessageResult{}, fmt.Errorf("send_image_message: failed to download image: %w", err)
+		return SendMessageResult{}, fmt.Errorf("send_image_message: invalid image URL: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return SendMessageResult{}, fmt.Errorf("send_image_message: image download returned status %d", resp.StatusCode)
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: image URL returned %d", dlResp.StatusCode)
 	}
 
-	ctx := context.Background()
-	sendResp, err := client.SendImage(ctx, input.To, resp.Body, input.Caption, input.ViewOnce)
+	resp, err := client.SendImage(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.Caption, input.ViewOnce)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
 
-	result := SendMessageResult{
-		Success:   sendResp.Success,
-		MessageID: sendResp.MessageID,
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
 		Status:    "sent",
-	}
-
-	return result, nil
+	}, nil
 }
 
 // EditMessageInput represents the input for editing a message
@@ -105,7 +107,6 @@ type EditMessageResult struct {
 
 // EditMessageDirect edits a previously sent message
 func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (EditMessageResult, error) {
-	// Validate input
 	if input.To == "" {
 		return EditMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
@@ -116,19 +117,16 @@ func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (Ed
 		return EditMessageResult{}, fmt.Errorf("new message content is required")
 	}
 
-	// Edit message via gateway
 	ctx := context.Background()
-	err := client.EditMessage(ctx, input.To, input.MessageID, input.NewMessage)
+	err := client.EditMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.NewMessage)
 	if err != nil {
 		return EditMessageResult{}, fmt.Errorf("edit_message: %w", err)
 	}
 
-	result := EditMessageResult{
+	return EditMessageResult{
 		Success: true,
 		Status:  "edited",
-	}
-
-	return result, nil
+	}, nil
 }
 
 // DeleteMessageInput represents the input for deleting a message
@@ -145,7 +143,6 @@ type DeleteMessageResult struct {
 
 // DeleteMessageDirect deletes a previously sent message
 func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput) (DeleteMessageResult, error) {
-	// Validate input
 	if input.To == "" {
 		return DeleteMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
@@ -153,26 +150,23 @@ func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput)
 		return DeleteMessageResult{}, fmt.Errorf("message ID is required")
 	}
 
-	// Delete message via gateway
 	ctx := context.Background()
-	err := client.DeleteMessage(ctx, input.To, input.MessageID)
+	err := client.DeleteMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID)
 	if err != nil {
 		return DeleteMessageResult{}, fmt.Errorf("delete_message: %w", err)
 	}
 
-	result := DeleteMessageResult{
+	return DeleteMessageResult{
 		Success: true,
 		Status:  "deleted",
-	}
-
-	return result, nil
+	}, nil
 }
 
 // ReactToMessageInput represents the input for reacting to a message
 type ReactToMessageInput struct {
-	To       string `json:"to"`
+	To        string `json:"to"`
 	MessageID string `json:"message_id"`
-	Emoji    string `json:"emoji"`
+	Emoji     string `json:"emoji"`
 }
 
 // ReactToMessageResult represents the result of reacting to a message
@@ -183,7 +177,6 @@ type ReactToMessageResult struct {
 
 // ReactToMessageDirect reacts to a message with an emoji
 func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInput) (ReactToMessageResult, error) {
-	// Validate input
 	if input.To == "" {
 		return ReactToMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
@@ -194,17 +187,14 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 		return ReactToMessageResult{}, fmt.Errorf("emoji is required")
 	}
 
-	// React to message via gateway
 	ctx := context.Background()
-	err := client.ReactToMessage(ctx, input.To, input.MessageID, input.Emoji)
+	err := client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji)
 	if err != nil {
 		return ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
 	}
 
-	result := ReactToMessageResult{
+	return ReactToMessageResult{
 		Success: true,
 		Status:  "reacted",
-	}
-
-	return result, nil
+	}, nil
 }

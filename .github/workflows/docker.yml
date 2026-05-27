@@ -62,39 +62,47 @@ jobs:
             ${{ vars.DOCKER_IMAGE }}:${{ steps.tag.outputs.VERSION }}
             ${{ vars.DOCKER_IMAGE }}:latest
 
+      # Best-effort: keep the Docker Hub README in sync with the repo README.
+      # If this fails (Docker Hub API change, rate limit, transient outage)
+      # we don't want to fail the whole release — the image push above is
+      # what actually matters. continue-on-error makes the step advisory.
       - name: Update Docker Hub repository description
+        continue-on-error: true
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE }}
         run: |
-          # Install jq for JSON parsing
+          set +e
           sudo apt-get update && sudo apt-get install -y jq
 
-          # Extract description from README (first paragraph after title)
-          DESCRIPTION=$(sed -n '3p' README.md)
-
-          # Read README and escape for JSON
-          README_CONTENT=$(cat README.md | jq -Rs .)
-
-          # Log debug info
-          echo "Repository: ${{ vars.DOCKER_IMAGE }}"
-          echo "Description: $DESCRIPTION"
-          echo "README length: $(echo "$README_CONTENT" | wc -c) characters"
-
-          # Update Docker Hub repository using API
-          RESPONSE=$(curl -s -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.DOCKERHUB_TOKEN }}" \
+          # Docker Hub deprecated using a PAT directly as a Bearer token for
+          # the repositories API. Exchange the PAT for a short-lived JWT
+          # via /v2/users/login first, then use that JWT as Bearer.
+          JWT_RESPONSE=$(curl -fsS -X POST \
             -H "Content-Type: application/json" \
-            -d "{
-              \"description\": \"$DESCRIPTION\",
-              \"full_description\": $README_CONTENT
-            }" \
-            "https://hub.docker.com/v2/repositories/${{ vars.DOCKER_IMAGE }}/")
+            -d "{\"username\":\"$DOCKERHUB_USERNAME\",\"password\":\"$DOCKERHUB_TOKEN\"}" \
+            https://hub.docker.com/v2/users/login)
+          JWT=$(echo "$JWT_RESPONSE" | jq -r '.token // empty')
+          if [ -z "$JWT" ]; then
+            echo "::warning::Docker Hub login failed; skipping README sync. Response: $JWT_RESPONSE"
+            exit 0
+          fi
+          echo "::add-mask::$JWT"
 
-          # Check for errors
-          echo "Docker Hub API response: $RESPONSE"
+          DESCRIPTION=$(sed -n '3p' README.md)
+          README_CONTENT=$(jq -Rs . < README.md)
+          echo "Repository: $DOCKER_IMAGE"
+          echo "Description: $DESCRIPTION"
+
+          RESPONSE=$(curl -sS -X PATCH \
+            -H "Authorization: Bearer $JWT" \
+            -H "Content-Type: application/json" \
+            -d "{\"description\": \"$DESCRIPTION\", \"full_description\": $README_CONTENT}" \
+            "https://hub.docker.com/v2/repositories/$DOCKER_IMAGE/")
 
           if echo "$RESPONSE" | jq -e '.message' > /dev/null 2>&1; then
-            echo "Error from Docker Hub API:"
-            echo "$RESPONSE" | jq -r '.message'
-            exit 1
+            echo "::warning::Docker Hub README sync failed: $(echo "$RESPONSE" | jq -r '.message')"
+            exit 0
           fi
-
           echo "Docker Hub description updated successfully"
