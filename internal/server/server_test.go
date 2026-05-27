@@ -21,6 +21,18 @@ func (m *mockGatewayClient) SendImage(ctx context.Context, msisdn string, image 
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_img_msg_id"}, nil
 }
 
+func (m *mockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_loc_msg_id"}, nil
+}
+
+func (m *mockGatewayClient) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_poll_msg_id"}, nil
+}
+
+func (m *mockGatewayClient) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_sticker_msg_id"}, nil
+}
+
 func (m *mockGatewayClient) EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error {
 	return nil
 }

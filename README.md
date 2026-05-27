@@ -12,7 +12,7 @@ A Model Context Protocol (MCP) server that exposes the [WhatsApp Gateway (waga)]
 [WhatsApp Gateway (waga)](https://github.com/glennprays/whatsapp-gateway) is a standalone service that provides a REST API for interacting with WhatsApp. It handles:
 
 - **WhatsApp Integration**: Manages the connection to WhatsApp servers
-- **Message Handling**: Sends/receives text and image messages
+- **Message Handling**: Sends/receives text, image, location, poll, and sticker messages
 - **Session Management**: Maintains authenticated WhatsApp sessions
 - **Webhook Support**: Delivers incoming messages via webhooks
 - **Health Monitoring**: Provides status and health endpoints
@@ -72,7 +72,7 @@ Before using this MCP server, you need:
 - **HTTP+SSE**: For web-based MCP clients with configurable Basic authentication
 
 **Key Features:**
-- Send text and image messages to WhatsApp contacts and groups
+- Send text, image, location, poll, and sticker messages to WhatsApp contacts and groups
 - Edit, delete, and react to sent messages
 - Check WhatsApp connection status
 - Manage webhook URLs for incoming message notifications
@@ -324,6 +324,40 @@ Send an image message to a WhatsApp contact or group.
 - `image_url` (string, required): URL of the image to send
 - `caption` (string, optional): Image caption
 - `view_once` (boolean, optional): Whether the image should be view-once (default: false)
+
+**Returns:** Message ID and status
+
+#### send_location_message
+Send a location message with GPS coordinates to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+  - Individual: `{phone}@s.whatsapp.net` (e.g., `6281234567890@s.whatsapp.net`)
+  - Group: `{group_id}@g.us` (e.g., `120363xxxxx@g.us`)
+- `latitude` (number, required): Geographic latitude of the location
+- `longitude` (number, required): Geographic longitude of the location
+- `name` (string, optional): Name of the location
+- `address` (string, optional): Address of the location
+
+**Returns:** Message ID and status
+
+#### send_poll_message
+Send a poll message with a question and options to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+- `question` (string, required): Poll question text
+- `options` (array of strings, required): List of poll options (minimum 2)
+- `selectable_count` (integer, optional): Maximum number of options a user can select (0 = no limit)
+
+**Returns:** Message ID and status
+
+#### send_sticker_message
+Send a sticker message from a URL to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+- `sticker_url` (string, required): URL of the sticker to send (WebP format)
 
 **Returns:** Message ID and status
 
