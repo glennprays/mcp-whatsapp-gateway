@@ -44,5 +44,8 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# MCP client config (contains secrets)
+.mcp.json
+
 # Logs
 *.log

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
@@ -102,7 +104,7 @@ func (m *MockGatewayClient) GetIncomingMessages(ctx context.Context, limit int) 
 	return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
 }
 
-// Test SendTextMessage
+// Test SendTextMessageDirect
 
 func TestSendTextMessage_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{
@@ -111,15 +113,14 @@ func TestSendTextMessage_Success(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendMessageInput{
 		To:      "6281234567890@s.whatsapp.net",
 		Message: "Hello, World!",
 	}
 
-	_, result, err := SendTextMessage(ctx, nil, input)
+	result, err := SendTextMessageDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("SendTextMessage() failed: %v", err)
+		t.Fatalf("SendTextMessageDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -133,54 +134,35 @@ func TestSendTextMessage_Success(t *testing.T) {
 
 func TestSendTextMessage_MissingRecipient(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendMessageInput{
 		To:      "",
 		Message: "Hello, World!",
 	}
 
-	_, _, err := SendTextMessage(ctx, nil, input)
+	_, err := SendTextMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing recipient")
 	}
 
-	if !errors.Is(err, errors.New("recipient address (to) is required")) && err.Error() != "recipient address (to) is required" {
+	if err.Error() != "recipient address (to) is required" {
 		t.Errorf("Expected error about missing recipient, got: %v", err)
 	}
 }
 
 func TestSendTextMessage_MissingMessage(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendMessageInput{
 		To:      "6281234567890@s.whatsapp.net",
 		Message: "",
 	}
 
-	_, _, err := SendTextMessage(ctx, nil, input)
+	_, err := SendTextMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing message")
 	}
 
-	if !errors.Is(err, errors.New("message content is required")) && err.Error() != "message content is required" {
+	if err.Error() != "message content is required" {
 		t.Errorf("Expected error about missing message, got: %v", err)
-	}
-}
-
-func TestSendTextMessage_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-	input := SendMessageInput{
-		To:      "6281234567890@s.whatsapp.net",
-		Message: "Hello, World!",
-	}
-
-	_, _, err := SendTextMessage(ctx, nil, input)
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-
-	if err.Error() != "gateway client not available" {
-		t.Errorf("Expected error about missing gateway client, got: %v", err)
 	}
 }
 
@@ -191,53 +173,60 @@ func TestSendTextMessage_GatewayError(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendMessageInput{
 		To:      "6281234567890@s.whatsapp.net",
 		Message: "Hello, World!",
 	}
 
-	_, _, err := SendTextMessage(ctx, nil, input)
+	_, err := SendTextMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error from gateway")
 	}
 }
 
-// Test SendImageMessage
+// Test SendImageMessageDirect
 
 func TestSendImageMessage_Success(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Write([]byte("fake-image-data"))
+	}))
+	defer ts.Close()
+
 	mockClient := &MockGatewayClient{
 		SendImageFunc: func(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error) {
 			return &gateway.SendMessageResponse{Success: true, MessageID: "img123"}, nil
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendImageInput{
 		To:       "6281234567890@s.whatsapp.net",
-		ImageURL: "https://example.com/image.jpg",
+		ImageURL: ts.URL + "/image.jpg",
 		Caption:  "Test image",
 	}
 
-	_, result, err := SendImageMessage(ctx, nil, input)
+	result, err := SendImageMessageDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("SendImageMessage() failed: %v", err)
+		t.Fatalf("SendImageMessageDirect() failed: %v", err)
 	}
 
 	if !result.Success {
 		t.Error("Expected success to be true")
 	}
+
+	if result.MessageID != "img123" {
+		t.Errorf("Expected message ID 'img123', got '%s'", result.MessageID)
+	}
 }
 
 func TestSendImageMessage_MissingRecipient(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendImageInput{
 		To:       "",
 		ImageURL: "https://example.com/image.jpg",
 	}
 
-	_, _, err := SendImageMessage(ctx, nil, input)
+	_, err := SendImageMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing recipient")
 	}
@@ -245,32 +234,48 @@ func TestSendImageMessage_MissingRecipient(t *testing.T) {
 
 func TestSendImageMessage_MissingImageURL(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := SendImageInput{
 		To:       "6281234567890@s.whatsapp.net",
 		ImageURL: "",
 	}
 
-	_, _, err := SendImageMessage(ctx, nil, input)
+	_, err := SendImageMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing image URL")
 	}
 }
 
-// Test EditMessage
+func TestSendImageMessage_DownloadFailure(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	mockClient := &MockGatewayClient{}
+	input := SendImageInput{
+		To:       "6281234567890@s.whatsapp.net",
+		ImageURL: ts.URL + "/missing.jpg",
+	}
+
+	_, err := SendImageMessageDirect(mockClient, input)
+	if err == nil {
+		t.Fatal("Expected error for failed image download")
+	}
+}
+
+// Test EditMessageDirect
 
 func TestEditMessage_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := EditMessageInput{
 		To:         "6281234567890@s.whatsapp.net",
 		MessageID:  "msg123",
 		NewMessage: "Edited message",
 	}
 
-	_, result, err := EditMessage(ctx, nil, input)
+	result, err := EditMessageDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("EditMessage() failed: %v", err)
+		t.Fatalf("EditMessageDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -284,14 +289,13 @@ func TestEditMessage_Success(t *testing.T) {
 
 func TestEditMessage_MissingRecipient(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := EditMessageInput{
 		To:         "",
 		MessageID:  "msg123",
 		NewMessage: "Edited message",
 	}
 
-	_, _, err := EditMessage(ctx, nil, input)
+	_, err := EditMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing recipient")
 	}
@@ -299,14 +303,13 @@ func TestEditMessage_MissingRecipient(t *testing.T) {
 
 func TestEditMessage_MissingMessageID(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := EditMessageInput{
 		To:         "6281234567890@s.whatsapp.net",
 		MessageID:  "",
 		NewMessage: "Edited message",
 	}
 
-	_, _, err := EditMessage(ctx, nil, input)
+	_, err := EditMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing message ID")
 	}
@@ -314,32 +317,30 @@ func TestEditMessage_MissingMessageID(t *testing.T) {
 
 func TestEditMessage_MissingNewMessage(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := EditMessageInput{
 		To:         "6281234567890@s.whatsapp.net",
 		MessageID:  "msg123",
 		NewMessage: "",
 	}
 
-	_, _, err := EditMessage(ctx, nil, input)
+	_, err := EditMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing new message")
 	}
 }
 
-// Test DeleteMessage
+// Test DeleteMessageDirect
 
 func TestDeleteMessage_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := DeleteMessageInput{
 		To:        "6281234567890@s.whatsapp.net",
 		MessageID: "msg123",
 	}
 
-	_, result, err := DeleteMessage(ctx, nil, input)
+	result, err := DeleteMessageDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("DeleteMessage() failed: %v", err)
+		t.Fatalf("DeleteMessageDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -353,13 +354,12 @@ func TestDeleteMessage_Success(t *testing.T) {
 
 func TestDeleteMessage_MissingRecipient(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := DeleteMessageInput{
 		To:        "",
 		MessageID: "msg123",
 	}
 
-	_, _, err := DeleteMessage(ctx, nil, input)
+	_, err := DeleteMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing recipient")
 	}
@@ -367,32 +367,30 @@ func TestDeleteMessage_MissingRecipient(t *testing.T) {
 
 func TestDeleteMessage_MissingMessageID(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := DeleteMessageInput{
 		To:        "6281234567890@s.whatsapp.net",
 		MessageID: "",
 	}
 
-	_, _, err := DeleteMessage(ctx, nil, input)
+	_, err := DeleteMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing message ID")
 	}
 }
 
-// Test ReactToMessage
+// Test ReactToMessageDirect
 
 func TestReactToMessage_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := ReactToMessageInput{
 		To:        "6281234567890@s.whatsapp.net",
 		MessageID: "msg123",
-		Emoji:     "👍",
+		Emoji:     "\U0001f44d",
 	}
 
-	_, result, err := ReactToMessage(ctx, nil, input)
+	result, err := ReactToMessageDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("ReactToMessage() failed: %v", err)
+		t.Fatalf("ReactToMessageDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -406,14 +404,13 @@ func TestReactToMessage_Success(t *testing.T) {
 
 func TestReactToMessage_MissingRecipient(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := ReactToMessageInput{
 		To:        "",
 		MessageID: "msg123",
-		Emoji:     "👍",
+		Emoji:     "\U0001f44d",
 	}
 
-	_, _, err := ReactToMessage(ctx, nil, input)
+	_, err := ReactToMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing recipient")
 	}
@@ -421,14 +418,13 @@ func TestReactToMessage_MissingRecipient(t *testing.T) {
 
 func TestReactToMessage_MissingMessageID(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := ReactToMessageInput{
 		To:        "6281234567890@s.whatsapp.net",
 		MessageID: "",
-		Emoji:     "👍",
+		Emoji:     "\U0001f44d",
 	}
 
-	_, _, err := ReactToMessage(ctx, nil, input)
+	_, err := ReactToMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing message ID")
 	}
@@ -436,20 +432,19 @@ func TestReactToMessage_MissingMessageID(t *testing.T) {
 
 func TestReactToMessage_MissingEmoji(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := ReactToMessageInput{
 		To:        "6281234567890@s.whatsapp.net",
 		MessageID: "msg123",
 		Emoji:     "",
 	}
 
-	_, _, err := ReactToMessage(ctx, nil, input)
+	_, err := ReactToMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing emoji")
 	}
 }
 
-// Test CheckConnectionStatus
+// Test CheckConnectionStatusDirect
 
 func TestCheckConnectionStatus_Success_Connected(t *testing.T) {
 	mockClient := &MockGatewayClient{
@@ -458,11 +453,9 @@ func TestCheckConnectionStatus_Success_Connected(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	result, err := CheckConnectionStatusDirect(mockClient, CheckConnectionStatusInput{})
 	if err != nil {
-		t.Fatalf("CheckConnectionStatus() failed: %v", err)
+		t.Fatalf("CheckConnectionStatusDirect() failed: %v", err)
 	}
 
 	if !result.Authenticated {
@@ -485,11 +478,9 @@ func TestCheckConnectionStatus_Success_Disconnected(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	result, err := CheckConnectionStatusDirect(mockClient, CheckConnectionStatusInput{})
 	if err != nil {
-		t.Fatalf("CheckConnectionStatus() failed: %v", err)
+		t.Fatalf("CheckConnectionStatusDirect() failed: %v", err)
 	}
 
 	if result.Authenticated {
@@ -501,19 +492,6 @@ func TestCheckConnectionStatus_Success_Disconnected(t *testing.T) {
 	}
 }
 
-func TestCheckConnectionStatus_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-
-	_, _, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-
-	if err.Error() != "gateway client not available" {
-		t.Errorf("Expected error about missing gateway client, got: %v", err)
-	}
-}
-
 func TestCheckConnectionStatus_GatewayError(t *testing.T) {
 	mockClient := &MockGatewayClient{
 		GetLoginStatusFunc: func(ctx context.Context) (*gateway.LoginStatus, error) {
@@ -521,15 +499,13 @@ func TestCheckConnectionStatus_GatewayError(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, _, err := CheckConnectionStatus(ctx, nil, CheckConnectionStatusInput{})
+	_, err := CheckConnectionStatusDirect(mockClient, CheckConnectionStatusInput{})
 	if err == nil {
 		t.Fatal("Expected error from gateway")
 	}
 }
 
-// Test CheckHealth
+// Test CheckHealthDirect
 
 func TestCheckHealth_Success_OK(t *testing.T) {
 	mockClient := &MockGatewayClient{
@@ -538,11 +514,9 @@ func TestCheckHealth_Success_OK(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	result, err := CheckHealthDirect(mockClient, CheckHealthInput{})
 	if err != nil {
-		t.Fatalf("CheckHealth() failed: %v", err)
+		t.Fatalf("CheckHealthDirect() failed: %v", err)
 	}
 
 	if result.Status != "ok" {
@@ -565,11 +539,9 @@ func TestCheckHealth_Success_NotOK(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	result, err := CheckHealthDirect(mockClient, CheckHealthInput{})
 	if err != nil {
-		t.Fatalf("CheckHealth() failed: %v", err)
+		t.Fatalf("CheckHealthDirect() failed: %v", err)
 	}
 
 	if result.Status != "degraded" {
@@ -581,19 +553,6 @@ func TestCheckHealth_Success_NotOK(t *testing.T) {
 	}
 }
 
-func TestCheckHealth_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-
-	_, _, err := CheckHealth(ctx, nil, CheckHealthInput{})
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-
-	if err.Error() != "gateway client not available" {
-		t.Errorf("Expected error about missing gateway client, got: %v", err)
-	}
-}
-
 func TestCheckHealth_GatewayError(t *testing.T) {
 	mockClient := &MockGatewayClient{
 		HealthFunc: func(ctx context.Context) (*gateway.HealthResponse, error) {
@@ -601,15 +560,13 @@ func TestCheckHealth_GatewayError(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, _, err := CheckHealth(ctx, nil, CheckHealthInput{})
+	_, err := CheckHealthDirect(mockClient, CheckHealthInput{})
 	if err == nil {
 		t.Fatal("Expected error from gateway")
 	}
 }
 
-// Test GetWebhook
+// Test GetWebhookDirect
 
 func TestGetWebhook_Success_Registered(t *testing.T) {
 	mockClient := &MockGatewayClient{
@@ -620,11 +577,9 @@ func TestGetWebhook_Success_Registered(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	result, err := GetWebhookDirect(mockClient, GetWebhookInput{})
 	if err != nil {
-		t.Fatalf("GetWebhook() failed: %v", err)
+		t.Fatalf("GetWebhookDirect() failed: %v", err)
 	}
 
 	if result.URL != "https://example.com/webhook" {
@@ -645,11 +600,9 @@ func TestGetWebhook_Success_NotRegistered(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	result, err := GetWebhookDirect(mockClient, GetWebhookInput{})
 	if err != nil {
-		t.Fatalf("GetWebhook() failed: %v", err)
+		t.Fatalf("GetWebhookDirect() failed: %v", err)
 	}
 
 	if result.URL != "" {
@@ -661,15 +614,6 @@ func TestGetWebhook_Success_NotRegistered(t *testing.T) {
 	}
 }
 
-func TestGetWebhook_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-
-	_, _, err := GetWebhook(ctx, nil, GetWebhookInput{})
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-}
-
 func TestGetWebhook_GatewayError(t *testing.T) {
 	mockClient := &MockGatewayClient{
 		GetWebhookFunc: func(ctx context.Context) (*gateway.WebhookResponse, error) {
@@ -677,28 +621,24 @@ func TestGetWebhook_GatewayError(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, _, err := GetWebhook(ctx, nil, GetWebhookInput{})
+	_, err := GetWebhookDirect(mockClient, GetWebhookInput{})
 	if err == nil {
 		t.Fatal("Expected error from gateway")
 	}
 }
 
-// Test RegisterWebhook
+// Test RegisterWebhookDirect
 
 func TestRegisterWebhook_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := RegisterWebhookInput{
 		URL:        "https://example.com/webhook",
 		HMACSecret: "secret123",
 	}
 
-	_, result, err := RegisterWebhook(ctx, nil, input)
+	result, err := RegisterWebhookDirect(mockClient, input)
 	if err != nil {
-		t.Fatalf("RegisterWebhook() failed: %v", err)
+		t.Fatalf("RegisterWebhookDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -716,29 +656,27 @@ func TestRegisterWebhook_Success(t *testing.T) {
 
 func TestRegisterWebhook_MissingURL(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := RegisterWebhookInput{
 		URL: "",
 	}
 
-	_, _, err := RegisterWebhook(ctx, nil, input)
+	_, err := RegisterWebhookDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for missing URL")
 	}
 
-	if !errors.Is(err, errors.New("webhook URL is required")) && err.Error() != "webhook URL is required" {
+	if err.Error() != "webhook URL is required" {
 		t.Errorf("Expected error about missing URL, got: %v", err)
 	}
 }
 
 func TestRegisterWebhook_InvalidURL(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := RegisterWebhookInput{
 		URL: "://invalid-url",
 	}
 
-	_, _, err := RegisterWebhook(ctx, nil, input)
+	_, err := RegisterWebhookDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for invalid URL")
 	}
@@ -746,43 +684,28 @@ func TestRegisterWebhook_InvalidURL(t *testing.T) {
 
 func TestRegisterWebhook_InvalidURLScheme(t *testing.T) {
 	mockClient := &MockGatewayClient{}
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
 	input := RegisterWebhookInput{
 		URL: "ftp://example.com/webhook",
 	}
 
-	_, _, err := RegisterWebhook(ctx, nil, input)
+	_, err := RegisterWebhookDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for invalid URL scheme")
 	}
 
-	if !errors.Is(err, errors.New("webhook URL must use HTTP or HTTPS scheme")) && err.Error() != "webhook URL must use HTTP or HTTPS scheme" {
+	if err.Error() != "webhook URL must use HTTP or HTTPS scheme" {
 		t.Errorf("Expected error about URL scheme, got: %v", err)
 	}
 }
 
-func TestRegisterWebhook_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-	input := RegisterWebhookInput{
-		URL: "https://example.com/webhook",
-	}
-
-	_, _, err := RegisterWebhook(ctx, nil, input)
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-}
-
-// Test DeleteWebhook
+// Test DeleteWebhookDirect
 
 func TestDeleteWebhook_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, result, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
+	result, err := DeleteWebhookDirect(mockClient, DeleteWebhookInput{})
 	if err != nil {
-		t.Fatalf("DeleteWebhook() failed: %v", err)
+		t.Fatalf("DeleteWebhookDirect() failed: %v", err)
 	}
 
 	if !result.Success {
@@ -794,15 +717,6 @@ func TestDeleteWebhook_Success(t *testing.T) {
 	}
 }
 
-func TestDeleteWebhook_NoGatewayClient(t *testing.T) {
-	ctx := context.Background()
-
-	_, _, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
-	if err == nil {
-		t.Fatal("Expected error when gateway client is not available")
-	}
-}
-
 func TestDeleteWebhook_GatewayError(t *testing.T) {
 	mockClient := &MockGatewayClient{
 		DeleteWebhookFunc: func(ctx context.Context) error {
@@ -810,15 +724,13 @@ func TestDeleteWebhook_GatewayError(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), "gateway", mockClient)
-
-	_, _, err := DeleteWebhook(ctx, nil, DeleteWebhookInput{})
+	_, err := DeleteWebhookDirect(mockClient, DeleteWebhookInput{})
 	if err == nil {
 		t.Fatal("Expected error from gateway")
 	}
 }
 
-// Test GetLatestIncomingMessages
+// Test GetLatestIncomingMessagesDirect
 
 func TestGetLatestIncomingMessages_Success(t *testing.T) {
 	mockClient := &MockGatewayClient{
@@ -862,7 +774,6 @@ func TestGetLatestIncomingMessages_DefaultLimitPassthrough(t *testing.T) {
 		},
 	}
 
-	// Caller omits Limit — tool must pass 0 through; gateway is the trust boundary.
 	_, err := GetLatestIncomingMessagesDirect(mockClient, GetLatestIncomingMessagesInput{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -899,7 +810,6 @@ func TestGetLatestIncomingMessages_GatewayError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from gateway")
 	}
-	// Error should be tool-prefixed for triage clarity.
 	if got := err.Error(); got == "" || got[:len("get_latest_incoming_messages")] != "get_latest_incoming_messages" {
 		t.Errorf("expected error prefixed with tool name, got %q", got)
 	}

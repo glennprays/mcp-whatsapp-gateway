@@ -23,7 +23,7 @@ func main() {
 
 	// Setup logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.SetOutput(os.Stdout)
+	log.SetOutput(os.Stderr)
 
 	log.Println("Starting WhatsApp Gateway MCP server")
 	log.Printf("Configuration: env=%s, transport=%s, waga_base_url=%s",

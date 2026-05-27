@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "whatsapp-gateway": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "WAGA_BASE_URL",
+        "-e",
+        "WAGA_JWT_TOKEN",
+        "glennprays/mcp-whatsapp-gateway:latest"
+      ],
+      "env": {
+        "WAGA_BASE_URL": "http://localhost:3000/api/v1",
+        "WAGA_JWT_TOKEN": "your_jwt_token_here"
+      }
+    }
+  }
+}
