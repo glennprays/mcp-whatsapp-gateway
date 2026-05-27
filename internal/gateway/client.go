@@ -20,6 +20,9 @@ type GatewayClient interface {
 	// Message operations
 	SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error)
 	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error)
+	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error)
+	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error)
+	SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error)
 	EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessage(ctx context.Context, msisdn, messageID string) error
 	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error
@@ -100,6 +103,45 @@ func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, 
 	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send image message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+	}, nil
+}
+
+// SendLocation sends a location message to the specified recipient
+func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error) {
+	resp, err := c.client.SendLocation(ctx, msisdn, latitude, longitude, name, address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send location message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+	}, nil
+}
+
+// SendPoll sends a poll message to the specified recipient
+func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error) {
+	resp, err := c.client.SendPoll(ctx, msisdn, question, options, selectableCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send poll message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+	}, nil
+}
+
+// SendSticker sends a sticker message to the specified recipient
+func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error) {
+	resp, err := c.client.SendSticker(ctx, msisdn, sticker)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send sticker message: %w", err)
 	}
 
 	return &SendMessageResponse{

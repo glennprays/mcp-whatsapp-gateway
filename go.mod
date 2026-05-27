@@ -10,6 +10,8 @@ require (
 	github.com/spf13/viper v1.21.0
 )
 
+replace github.com/glennprays/whatsapp-gateway-sdk-go => ../whatsapp-gateway-sdk-go
+
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

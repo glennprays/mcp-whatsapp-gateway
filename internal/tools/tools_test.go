@@ -16,6 +16,9 @@ import (
 type MockGatewayClient struct {
 	SendTextFunc            func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error)
 	SendImageFunc           func(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error)
+	SendLocationFunc        func(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error)
+	SendPollFunc            func(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*gateway.SendMessageResponse, error)
+	SendStickerFunc         func(ctx context.Context, msisdn string, sticker io.Reader) (*gateway.SendMessageResponse, error)
 	EditMessageFunc         func(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessageFunc       func(ctx context.Context, msisdn, messageID string) error
 	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string) error
@@ -39,6 +42,27 @@ func (m *MockGatewayClient) SendImage(ctx context.Context, msisdn string, image 
 		return m.SendImageFunc(ctx, msisdn, image, caption, isViewOnce)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_img_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
+	if m.SendLocationFunc != nil {
+		return m.SendLocationFunc(ctx, msisdn, latitude, longitude, name, address)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_loc_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*gateway.SendMessageResponse, error) {
+	if m.SendPollFunc != nil {
+		return m.SendPollFunc(ctx, msisdn, question, options, selectableCount)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_poll_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*gateway.SendMessageResponse, error) {
+	if m.SendStickerFunc != nil {
+		return m.SendStickerFunc(ctx, msisdn, sticker)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_sticker_msg_id"}, nil
 }
 
 func (m *MockGatewayClient) EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error {

@@ -53,6 +53,21 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, createReactToMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_location_message",
+		Description: "Send a location with GPS coordinates to a WhatsApp number or group",
+	}, createSendLocationMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_poll_message",
+		Description: "Send a poll with question and options to a WhatsApp number or group",
+	}, createSendPollMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_sticker_message",
+		Description: "Send a sticker from a URL to a WhatsApp number or group",
+	}, createSendStickerMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
 		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))

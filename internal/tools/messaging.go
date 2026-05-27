@@ -10,7 +10,7 @@ import (
 	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
-const imageDownloadTimeout = 20 * time.Second
+const mediaDownloadTimeout = 20 * time.Second
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
@@ -64,7 +64,7 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("image URL is required")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), mediaDownloadTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.ImageURL, nil)
@@ -196,5 +196,112 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 	return ReactToMessageResult{
 		Success: true,
 		Status:  "reacted",
+	}, nil
+}
+
+// SendLocationInput represents the input for sending a location message
+type SendLocationInput struct {
+	To        string  `json:"to"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Name      string  `json:"name,omitempty"`
+	Address   string  `json:"address,omitempty"`
+}
+
+// SendLocationMessageDirect sends a location message
+func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.Latitude == 0 && input.Longitude == 0 {
+		return SendMessageResult{}, fmt.Errorf("latitude and longitude are required")
+	}
+
+	ctx := context.Background()
+	resp, err := client.SendLocation(ctx, waga.FormatMSISDN(input.To), input.Latitude, input.Longitude, input.Name, input.Address)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_location_message: %w", err)
+	}
+
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    "sent",
+	}, nil
+}
+
+// SendPollInput represents the input for sending a poll message
+type SendPollInput struct {
+	To              string   `json:"to"`
+	Question        string   `json:"question"`
+	Options         []string `json:"options"`
+	SelectableCount int      `json:"selectable_count,omitempty"`
+}
+
+// SendPollMessageDirect sends a poll message
+func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.Question == "" {
+		return SendMessageResult{}, fmt.Errorf("question is required")
+	}
+	if len(input.Options) < 2 {
+		return SendMessageResult{}, fmt.Errorf("at least 2 options are required")
+	}
+
+	ctx := context.Background()
+	resp, err := client.SendPoll(ctx, waga.FormatMSISDN(input.To), input.Question, input.Options, input.SelectableCount)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_poll_message: %w", err)
+	}
+
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    "sent",
+	}, nil
+}
+
+// SendStickerInput represents the input for sending a sticker message
+type SendStickerInput struct {
+	To         string `json:"to"`
+	StickerURL string `json:"sticker_url"`
+}
+
+// SendStickerMessageDirect sends a sticker message
+func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.StickerURL == "" {
+		return SendMessageResult{}, fmt.Errorf("sticker URL is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), mediaDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.StickerURL, nil)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_sticker_message: invalid sticker URL: %w", err)
+	}
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_sticker_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_sticker_message: sticker URL returned %d", dlResp.StatusCode)
+	}
+
+	resp, err := client.SendSticker(ctx, waga.FormatMSISDN(input.To), dlResp.Body)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_sticker_message: %w", err)
+	}
+
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    "sent",
 	}, nil
 }

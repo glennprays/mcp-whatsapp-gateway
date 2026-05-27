@@ -54,6 +54,21 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Description: "React to a message with an emoji",
 	}, createReactToMessageHandler(gatewayClient))
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_location_message",
+		Description: "Send a location with GPS coordinates to a WhatsApp number or group",
+	}, createSendLocationMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_poll_message",
+		Description: "Send a poll with question and options to a WhatsApp number or group",
+	}, createSendPollMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_sticker_message",
+		Description: "Send a sticker from a URL to a WhatsApp number or group",
+	}, createSendStickerMessageHandler(gatewayClient))
+
 	// Register inbox tools
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
@@ -136,6 +151,36 @@ func createDeleteMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHan
 func createReactToMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.ReactToMessageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.ReactToMessageInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.ReactToMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendLocationMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendLocationInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendLocationInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendLocationMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendPollMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendPollInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendPollInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendPollMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendStickerMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendStickerInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendStickerInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendStickerMessageDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}
