@@ -6,7 +6,6 @@ import (
 	"net/url"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // GetWebhookInput represents the input for getting webhook configuration
@@ -21,30 +20,8 @@ type GetWebhookResult struct {
 	Description string `json:"description"`
 }
 
-// GetWebhook retrieves the current webhook configuration
-func GetWebhook(ctx context.Context, req *mcp.CallToolRequest, input GetWebhookInput) (
-	*mcp.CallToolResult,
-	GetWebhookResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, GetWebhookResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := GetWebhookDirect(client, input)
-	if err != nil {
-		return nil, GetWebhookResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// GetWebhookDirect retrieves the current webhook configuration without using context
+// GetWebhookDirect retrieves the current webhook configuration
 func GetWebhookDirect(client gateway.GatewayClient, input GetWebhookInput) (GetWebhookResult, error) {
-	// Get webhook via gateway
 	ctx := context.Background()
 	webhook, err := client.GetWebhook(ctx)
 	if err != nil {
@@ -80,35 +57,12 @@ type RegisterWebhookResult struct {
 	Description string `json:"description"`
 }
 
-// RegisterWebhook registers a webhook URL to receive WhatsApp messages
-func RegisterWebhook(ctx context.Context, req *mcp.CallToolRequest, input RegisterWebhookInput) (
-	*mcp.CallToolResult,
-	RegisterWebhookResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, RegisterWebhookResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := RegisterWebhookDirect(client, input)
-	if err != nil {
-		return nil, RegisterWebhookResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// RegisterWebhookDirect registers a webhook URL to receive WhatsApp messages without using context
+// RegisterWebhookDirect registers a webhook URL to receive WhatsApp messages
 func RegisterWebhookDirect(client gateway.GatewayClient, input RegisterWebhookInput) (RegisterWebhookResult, error) {
-	// Validate input
 	if input.URL == "" {
 		return RegisterWebhookResult{}, fmt.Errorf("webhook URL is required")
 	}
 
-	// Validate URL format
 	parsedURL, err := url.Parse(input.URL)
 	if err != nil {
 		return RegisterWebhookResult{}, fmt.Errorf("invalid webhook URL format: %w", err)
@@ -118,7 +72,6 @@ func RegisterWebhookDirect(client gateway.GatewayClient, input RegisterWebhookIn
 		return RegisterWebhookResult{}, fmt.Errorf("webhook URL must use HTTP or HTTPS scheme")
 	}
 
-	// Register webhook via gateway
 	ctx := context.Background()
 	err = client.RegisterWebhook(ctx, input.URL, input.HMACSecret)
 	if err != nil {
@@ -126,9 +79,9 @@ func RegisterWebhookDirect(client gateway.GatewayClient, input RegisterWebhookIn
 	}
 
 	result := RegisterWebhookResult{
-		Success: true,
-		URL:     input.URL,
-		Status:  "registered",
+		Success:     true,
+		URL:         input.URL,
+		Status:      "registered",
 		Description: "Webhook registered successfully. Incoming WhatsApp messages will be sent to this URL.",
 	}
 
@@ -147,30 +100,8 @@ type DeleteWebhookResult struct {
 	Description string `json:"description"`
 }
 
-// DeleteWebhook removes the currently registered webhook
-func DeleteWebhook(ctx context.Context, req *mcp.CallToolRequest, input DeleteWebhookInput) (
-	*mcp.CallToolResult,
-	DeleteWebhookResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, DeleteWebhookResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := DeleteWebhookDirect(client, input)
-	if err != nil {
-		return nil, DeleteWebhookResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// DeleteWebhookDirect removes the currently registered webhook without using context
+// DeleteWebhookDirect removes the currently registered webhook
 func DeleteWebhookDirect(client gateway.GatewayClient, input DeleteWebhookInput) (DeleteWebhookResult, error) {
-	// Delete webhook via gateway
 	ctx := context.Background()
 	err := client.DeleteWebhook(ctx)
 	if err != nil {
@@ -178,8 +109,8 @@ func DeleteWebhookDirect(client gateway.GatewayClient, input DeleteWebhookInput)
 	}
 
 	result := DeleteWebhookResult{
-		Success: true,
-		Status:  "deleted",
+		Success:     true,
+		Status:      "deleted",
 		Description: "Webhook deleted successfully. Incoming WhatsApp messages will no longer be sent.",
 	}
 

@@ -3,20 +3,10 @@ package tools
 import (
 	"context"
 	"fmt"
-	"io"
+	"net/http"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-// GetGatewayClient retrieves the gateway client from context or returns an error
-func GetGatewayClient(ctx context.Context) (gateway.GatewayClient, error) {
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, fmt.Errorf("gateway client not available")
-	}
-	return client, nil
-}
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
@@ -31,28 +21,7 @@ type SendMessageResult struct {
 	Status    string `json:"status"`
 }
 
-// SendTextMessage sends a text message to a WhatsApp contact or group
-func SendTextMessage(ctx context.Context, req *mcp.CallToolRequest, input SendMessageInput) (
-	*mcp.CallToolResult,
-	SendMessageResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, SendMessageResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := SendTextMessageDirect(client, input)
-	if err != nil {
-		return nil, SendMessageResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// SendTextMessageDirect sends a text message without using context
+// SendTextMessageDirect sends a text message
 func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput) (SendMessageResult, error) {
 	// Validate input
 	if input.To == "" {
@@ -86,28 +55,7 @@ type SendImageInput struct {
 	ViewOnce bool   `json:"view_once"`
 }
 
-// SendImageMessage sends an image message to a WhatsApp contact or group
-func SendImageMessage(ctx context.Context, req *mcp.CallToolRequest, input SendImageInput) (
-	*mcp.CallToolResult,
-	SendMessageResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, SendMessageResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := SendImageMessageDirect(client, input)
-	if err != nil {
-		return nil, SendMessageResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// SendImageMessageDirect sends an image message without using context
+// SendImageMessageDirect sends an image message
 func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) (SendMessageResult, error) {
 	// Validate input
 	if input.To == "" {
@@ -117,22 +65,25 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("image URL is required")
 	}
 
-	// For now, use a placeholder reader
-	// In a real implementation, you would download the image from the URL
-	// This is a placeholder - image URL handling would go here
-	imageReader := io.NopCloser(nil)
-	_ = input.ImageURL // Will be used to download the image
+	resp, err := http.Get(input.ImageURL)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: failed to download image: %w", err)
+	}
+	defer resp.Body.Close()
 
-	// Send image via gateway
+	if resp.StatusCode != http.StatusOK {
+		return SendMessageResult{}, fmt.Errorf("send_image_message: image download returned status %d", resp.StatusCode)
+	}
+
 	ctx := context.Background()
-	resp, err := client.SendImage(ctx, input.To, imageReader, input.Caption, input.ViewOnce)
+	sendResp, err := client.SendImage(ctx, input.To, resp.Body, input.Caption, input.ViewOnce)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
 
 	result := SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
+		Success:   sendResp.Success,
+		MessageID: sendResp.MessageID,
 		Status:    "sent",
 	}
 
@@ -152,28 +103,7 @@ type EditMessageResult struct {
 	Status  string `json:"status"`
 }
 
-// EditMessage edits a previously sent message
-func EditMessage(ctx context.Context, req *mcp.CallToolRequest, input EditMessageInput) (
-	*mcp.CallToolResult,
-	EditMessageResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, EditMessageResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := EditMessageDirect(client, input)
-	if err != nil {
-		return nil, EditMessageResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// EditMessageDirect edits a previously sent message without using context
+// EditMessageDirect edits a previously sent message
 func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (EditMessageResult, error) {
 	// Validate input
 	if input.To == "" {
@@ -213,28 +143,7 @@ type DeleteMessageResult struct {
 	Status  string `json:"status"`
 }
 
-// DeleteMessage deletes a previously sent message
-func DeleteMessage(ctx context.Context, req *mcp.CallToolRequest, input DeleteMessageInput) (
-	*mcp.CallToolResult,
-	DeleteMessageResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, DeleteMessageResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := DeleteMessageDirect(client, input)
-	if err != nil {
-		return nil, DeleteMessageResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// DeleteMessageDirect deletes a previously sent message without using context
+// DeleteMessageDirect deletes a previously sent message
 func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput) (DeleteMessageResult, error) {
 	// Validate input
 	if input.To == "" {
@@ -272,28 +181,7 @@ type ReactToMessageResult struct {
 	Status  string `json:"status"`
 }
 
-// ReactToMessage reacts to a message with an emoji
-func ReactToMessage(ctx context.Context, req *mcp.CallToolRequest, input ReactToMessageInput) (
-	*mcp.CallToolResult,
-	ReactToMessageResult,
-	error,
-) {
-	// Get gateway client from context
-	client, ok := ctx.Value("gateway").(gateway.GatewayClient)
-	if !ok || client == nil {
-		return nil, ReactToMessageResult{}, fmt.Errorf("gateway client not available")
-	}
-
-	// Call the direct implementation
-	result, err := ReactToMessageDirect(client, input)
-	if err != nil {
-		return nil, ReactToMessageResult{}, err
-	}
-
-	return nil, result, nil
-}
-
-// ReactToMessageDirect reacts to a message with an emoji without using context
+// ReactToMessageDirect reacts to a message with an emoji
 func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInput) (ReactToMessageResult, error) {
 	// Validate input
 	if input.To == "" {
