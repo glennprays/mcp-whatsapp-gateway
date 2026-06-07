@@ -10,7 +10,9 @@ import (
 	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
-const mediaDownloadTimeout = 20 * time.Second
+// mediaDownloadTimeout matches the gateway client timeout so media
+// downloads never fail earlier than the gateway request itself would.
+const mediaDownloadTimeout = 30 * time.Second
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
@@ -213,8 +215,11 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 	if input.To == "" {
 		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
-	if input.Latitude == 0 && input.Longitude == 0 {
-		return SendMessageResult{}, fmt.Errorf("latitude and longitude are required")
+	if input.Latitude < -90 || input.Latitude > 90 {
+		return SendMessageResult{}, fmt.Errorf("latitude must be between -90 and 90")
+	}
+	if input.Longitude < -180 || input.Longitude > 180 {
+		return SendMessageResult{}, fmt.Errorf("longitude must be between -180 and 180")
 	}
 
 	ctx := context.Background()

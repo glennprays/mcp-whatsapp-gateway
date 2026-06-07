@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/config"
 	"github.com/glennprays/mcp-whatsapp-gateway/internal/gateway"
@@ -124,20 +125,29 @@ func (s *HTTPServer) RunHTTP(ctx context.Context) error {
 		Handler: s.handler,
 	}
 
-	// Start HTTP server
+	// Start HTTP server; surface startup failures (e.g. port in use)
+	// instead of only printing them inside the goroutine
+	errCh := make(chan error, 1)
 	go func() {
 		fmt.Printf("HTTP+SSE server listening on %s\n", addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTP server error: %v\n", err)
+			errCh <- err
 		}
 	}()
 
-	// Wait for context cancellation
-	<-ctx.Done()
+	// Wait for context cancellation or server failure
+	select {
+	case err := <-errCh:
+		return fmt.Errorf("HTTP server error: %w", err)
+	case <-ctx.Done():
+	}
 
-	// Graceful shutdown
-	shutdownCtx := context.Background()
-	httpServer.Shutdown(shutdownCtx)
+	// Graceful shutdown, bounded so a hung connection cannot block exit
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("HTTP server shutdown: %w", err)
+	}
 
 	return nil
 }
