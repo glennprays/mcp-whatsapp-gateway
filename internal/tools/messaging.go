@@ -10,7 +10,9 @@ import (
 	waga "github.com/glennprays/whatsapp-gateway-sdk-go"
 )
 
-const mediaDownloadTimeout = 20 * time.Second
+// mediaDownloadTimeout matches the gateway client timeout so media
+// downloads never fail earlier than the gateway request itself would.
+const mediaDownloadTimeout = 30 * time.Second
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
