@@ -838,3 +838,36 @@ func TestGetLatestIncomingMessages_GatewayError(t *testing.T) {
 		t.Errorf("expected error prefixed with tool name, got %q", got)
 	}
 }
+
+// Test SendLocationMessageDirect coordinate validation
+
+func TestSendLocationMessage_NullIslandIsValid(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		SendLocationFunc: func(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
+			return &gateway.SendMessageResponse{Success: true, MessageID: "msg123"}, nil
+		},
+	}
+
+	input := SendLocationInput{To: "6281234567890@s.whatsapp.net", Latitude: 0, Longitude: 0}
+	result, err := SendLocationMessageDirect(mockClient, input)
+	if err != nil {
+		t.Fatalf("coordinates (0,0) must be valid, got error: %v", err)
+	}
+	if !result.Success {
+		t.Error("Expected success to be true")
+	}
+}
+
+func TestSendLocationMessage_OutOfRangeLatitude(t *testing.T) {
+	input := SendLocationInput{To: "6281234567890@s.whatsapp.net", Latitude: 91, Longitude: 0}
+	if _, err := SendLocationMessageDirect(&MockGatewayClient{}, input); err == nil {
+		t.Error("expected error for latitude > 90")
+	}
+}
+
+func TestSendLocationMessage_OutOfRangeLongitude(t *testing.T) {
+	input := SendLocationInput{To: "6281234567890@s.whatsapp.net", Latitude: 0, Longitude: -181}
+	if _, err := SendLocationMessageDirect(&MockGatewayClient{}, input); err == nil {
+		t.Error("expected error for longitude < -180")
+	}
+}

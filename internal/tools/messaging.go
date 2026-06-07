@@ -213,8 +213,11 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 	if input.To == "" {
 		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
 	}
-	if input.Latitude == 0 && input.Longitude == 0 {
-		return SendMessageResult{}, fmt.Errorf("latitude and longitude are required")
+	if input.Latitude < -90 || input.Latitude > 90 {
+		return SendMessageResult{}, fmt.Errorf("latitude must be between -90 and 90")
+	}
+	if input.Longitude < -180 || input.Longitude > 180 {
+		return SendMessageResult{}, fmt.Errorf("longitude must be between -180 and 180")
 	}
 
 	ctx := context.Background()
