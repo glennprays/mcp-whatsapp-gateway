@@ -29,6 +29,7 @@ type GatewayClient interface {
 
 	// Read operations
 	GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
+	GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error)
 
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
@@ -95,6 +96,8 @@ func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMes
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -108,6 +111,8 @@ func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, 
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -121,6 +126,8 @@ func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, long
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -134,6 +141,8 @@ func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options 
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -147,6 +156,8 @@ func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Read
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -188,6 +199,22 @@ func (c *Client) GetIncomingMessages(ctx context.Context, limit int) (*waga.Inco
 		return nil, fmt.Errorf("failed to get incoming messages: %w", err)
 	}
 	return resp, nil
+}
+
+// GetJobStatus polls the status of a queued message job by its ID.
+func (c *Client) GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error) {
+	resp, err := c.client.GetJobStatus(ctx, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job status: %w", err)
+	}
+	return &JobStatusResponse{
+		JobID:       resp.JobID,
+		Status:      resp.Status,
+		MessageID:   resp.MessageID,
+		Error:       resp.Error,
+		CreatedAt:   resp.CreatedAt,
+		CompletedAt: resp.CompletedAt,
+	}, nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated
@@ -258,10 +285,26 @@ func (c *Client) IsHealthy(ctx context.Context) bool {
 
 // Response types - these wrap the SDK types for consistency
 
-// SendMessageResponse represents the response from sending a message
+// SendMessageResponse represents the response from sending a message.
+//
+// In direct mode the gateway returns MessageID. In queue mode it returns
+// Status ("queued") and JobID instead, with an empty MessageID — poll the
+// job with GetJobStatus to obtain the final message ID/outcome.
 type SendMessageResponse struct {
 	Success   bool   `json:"success"`
 	MessageID string `json:"message_id"`
+	Status    string `json:"status,omitempty"`
+	JobID     string `json:"job_id,omitempty"`
+}
+
+// JobStatusResponse represents the status of a queued message job.
+type JobStatusResponse struct {
+	JobID       string  `json:"job_id"`
+	Status      string  `json:"status"`
+	MessageID   *string `json:"message_id,omitempty"`
+	Error       *string `json:"error,omitempty"`
+	CreatedAt   string  `json:"created_at"`
+	CompletedAt *string `json:"completed_at,omitempty"`
 }
 
 // LoginStatus represents the WhatsApp session status

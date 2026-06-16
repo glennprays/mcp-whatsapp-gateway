@@ -69,8 +69,13 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, createSendStickerMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_job_status",
+		Description: "Poll the status of a queued message job by its job_id (returned by send_* tools when the gateway runs in queue mode). Returns status (queued/processing/completed/failed), the message_id once completed, and any error.",
+	}, createGetJobStatusHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
-		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{

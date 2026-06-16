@@ -23,6 +23,7 @@ type MockGatewayClient struct {
 	DeleteMessageFunc       func(ctx context.Context, msisdn, messageID string) error
 	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string) error
 	GetIncomingMessagesFunc func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
+	GetJobStatusFunc        func(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error)
 	GetLoginStatusFunc      func(ctx context.Context) (*gateway.LoginStatus, error)
 	HealthFunc              func(ctx context.Context) (*gateway.HealthResponse, error)
 	GetWebhookFunc          func(ctx context.Context) (*gateway.WebhookResponse, error)
@@ -126,6 +127,13 @@ func (m *MockGatewayClient) GetIncomingMessages(ctx context.Context, limit int) 
 		return m.GetIncomingMessagesFunc(ctx, limit)
 	}
 	return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
+}
+
+func (m *MockGatewayClient) GetJobStatus(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error) {
+	if m.GetJobStatusFunc != nil {
+		return m.GetJobStatusFunc(ctx, jobID)
+	}
+	return &gateway.JobStatusResponse{JobID: jobID, Status: "completed"}, nil
 }
 
 // Test SendTextMessageDirect
@@ -869,5 +877,61 @@ func TestSendLocationMessage_OutOfRangeLongitude(t *testing.T) {
 	input := SendLocationInput{To: "6281234567890@s.whatsapp.net", Latitude: 0, Longitude: -181}
 	if _, err := SendLocationMessageDirect(&MockGatewayClient{}, input); err == nil {
 		t.Error("expected error for longitude < -180")
+	}
+}
+
+func TestSendTextMessage_QueueModeSurfacesJobID(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		SendTextFunc: func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error) {
+			// Queue mode: 202 with status+job_id, empty message_id
+			return &gateway.SendMessageResponse{Success: true, Status: "queued", JobID: "job-77"}, nil
+		},
+	}
+	res, err := SendTextMessageDirect(mockClient, SendMessageInput{To: "6281234567890", Message: "hi"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != "queued" {
+		t.Errorf("expected status queued, got %q", res.Status)
+	}
+	if res.JobID != "job-77" {
+		t.Errorf("expected job id job-77, got %q", res.JobID)
+	}
+	if res.MessageID != "" {
+		t.Errorf("expected empty message id in queue mode, got %q", res.MessageID)
+	}
+}
+
+func TestSendTextMessage_DirectModeStatusSent(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		SendTextFunc: func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error) {
+			return &gateway.SendMessageResponse{Success: true, MessageID: "msg-1"}, nil
+		},
+	}
+	res, _ := SendTextMessageDirect(mockClient, SendMessageInput{To: "6281234567890", Message: "hi"})
+	if res.Status != "sent" || res.MessageID != "msg-1" {
+		t.Errorf("expected sent/msg-1, got %q/%q", res.Status, res.MessageID)
+	}
+}
+
+func TestGetJobStatus(t *testing.T) {
+	msgID := "3EB0ABC"
+	mockClient := &MockGatewayClient{
+		GetJobStatusFunc: func(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error) {
+			return &gateway.JobStatusResponse{JobID: jobID, Status: "completed", MessageID: &msgID}, nil
+		},
+	}
+	res, err := GetJobStatusDirect(mockClient, GetJobStatusInput{JobID: "job-77"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != "completed" || res.MessageID != "3EB0ABC" {
+		t.Errorf("unexpected result: %+v", res)
+	}
+}
+
+func TestGetJobStatus_RequiresJobID(t *testing.T) {
+	if _, err := GetJobStatusDirect(&MockGatewayClient{}, GetJobStatusInput{}); err == nil {
+		t.Error("expected error for empty job_id")
 	}
 }

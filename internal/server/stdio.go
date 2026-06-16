@@ -69,10 +69,15 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Description: "Send a sticker from a URL to a WhatsApp number or group",
 	}, createSendStickerMessageHandler(gatewayClient))
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_job_status",
+		Description: "Poll the status of a queued message job by its job_id (returned by send_* tools when the gateway runs in queue mode). Returns status (queued/processing/completed/failed), the message_id once completed, and any error.",
+	}, createGetJobStatusHandler(gatewayClient))
+
 	// Register inbox tools
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
-		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
 
 	// Register connection tools
@@ -181,6 +186,16 @@ func createSendPollMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolH
 func createSendStickerMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendStickerInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendStickerInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.SendStickerMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createGetJobStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetJobStatusInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetJobStatusInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.GetJobStatusDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}

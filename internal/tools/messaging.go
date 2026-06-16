@@ -20,11 +20,35 @@ type SendMessageInput struct {
 	Message string `json:"message"`
 }
 
-// SendMessageResult represents the result of sending a message
+// SendMessageResult represents the result of sending a message.
+//
+// In queue mode the gateway returns Status "queued" and a JobID instead of a
+// MessageID; poll get_job_status with the JobID to obtain the final outcome.
 type SendMessageResult struct {
 	Success   bool   `json:"success"`
-	MessageID string `json:"message_id"`
+	MessageID string `json:"message_id,omitempty"`
 	Status    string `json:"status"`
+	JobID     string `json:"job_id,omitempty"`
+}
+
+// toSendResult maps a gateway send response into the tool result, deriving an
+// honest status: the gateway's own status when present (e.g. "queued"),
+// otherwise "sent" when a message ID came back, else "unknown".
+func toSendResult(resp *gateway.SendMessageResponse) SendMessageResult {
+	status := resp.Status
+	if status == "" {
+		if resp.MessageID != "" {
+			status = "sent"
+		} else {
+			status = "unknown"
+		}
+	}
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    status,
+		JobID:     resp.JobID,
+	}
 }
 
 // SendTextMessageDirect sends a text message
@@ -42,11 +66,7 @@ func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput)
 		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendImageInput represents the input for sending an image message
@@ -87,11 +107,7 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // EditMessageInput represents the input for editing a message
@@ -228,11 +244,7 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 		return SendMessageResult{}, fmt.Errorf("send_location_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendPollInput represents the input for sending a poll message
@@ -261,11 +273,7 @@ func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (S
 		return SendMessageResult{}, fmt.Errorf("send_poll_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendStickerInput represents the input for sending a sticker message
@@ -304,9 +312,48 @@ func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInp
 		return SendMessageResult{}, fmt.Errorf("send_sticker_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
+}
+
+// GetJobStatusInput represents the input for polling a queued message job.
+type GetJobStatusInput struct {
+	JobID string `json:"job_id"`
+}
+
+// JobStatusResult represents the status of a queued message job.
+type JobStatusResult struct {
+	JobID       string `json:"job_id"`
+	Status      string `json:"status"`
+	MessageID   string `json:"message_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// GetJobStatusDirect polls the status of a queued message job by its ID.
+func GetJobStatusDirect(client gateway.GatewayClient, input GetJobStatusInput) (JobStatusResult, error) {
+	if input.JobID == "" {
+		return JobStatusResult{}, fmt.Errorf("job_id is required")
+	}
+
+	resp, err := client.GetJobStatus(context.Background(), input.JobID)
+	if err != nil {
+		return JobStatusResult{}, fmt.Errorf("get_job_status: %w", err)
+	}
+
+	result := JobStatusResult{
+		JobID:     resp.JobID,
+		Status:    resp.Status,
+		CreatedAt: resp.CreatedAt,
+	}
+	if resp.MessageID != nil {
+		result.MessageID = *resp.MessageID
+	}
+	if resp.Error != nil {
+		result.Error = *resp.Error
+	}
+	if resp.CompletedAt != nil {
+		result.CompletedAt = *resp.CompletedAt
+	}
+	return result, nil
 }

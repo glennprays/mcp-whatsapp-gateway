@@ -69,6 +69,10 @@ func (m *mockGatewayClient) GetIncomingMessages(ctx context.Context, limit int) 
 	return &waga.IncomingMessagesResponse{Success: true, Count: 0, Messages: []waga.IncomingMessage{}}, nil
 }
 
+func (m *mockGatewayClient) GetJobStatus(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error) {
+	return &gateway.JobStatusResponse{JobID: jobID, Status: "completed"}, nil
+}
+
 func TestNewStdioServer_Success(t *testing.T) {
 	cfg := &config.Config{
 		WagaBaseURL:  "http://localhost:3000/api/v1",
