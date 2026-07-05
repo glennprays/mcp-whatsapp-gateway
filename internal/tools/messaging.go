@@ -20,11 +20,35 @@ type SendMessageInput struct {
 	Message string `json:"message"`
 }
 
-// SendMessageResult represents the result of sending a message
+// SendMessageResult represents the result of sending a message.
+//
+// In queue mode the gateway returns Status "queued" and a JobID instead of a
+// MessageID; poll get_job_status with the JobID to obtain the final outcome.
 type SendMessageResult struct {
 	Success   bool   `json:"success"`
-	MessageID string `json:"message_id"`
+	MessageID string `json:"message_id,omitempty"`
 	Status    string `json:"status"`
+	JobID     string `json:"job_id,omitempty"`
+}
+
+// toSendResult maps a gateway send response into the tool result, deriving an
+// honest status: the gateway's own status when present (e.g. "queued"),
+// otherwise "sent" when a message ID came back, else "unknown".
+func toSendResult(resp *gateway.SendMessageResponse) SendMessageResult {
+	status := resp.Status
+	if status == "" {
+		if resp.MessageID != "" {
+			status = "sent"
+		} else {
+			status = "unknown"
+		}
+	}
+	return SendMessageResult{
+		Success:   resp.Success,
+		MessageID: resp.MessageID,
+		Status:    status,
+		JobID:     resp.JobID,
+	}
 }
 
 // SendTextMessageDirect sends a text message
@@ -42,11 +66,7 @@ func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput)
 		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendImageInput represents the input for sending an image message
@@ -55,6 +75,130 @@ type SendImageInput struct {
 	ImageURL string `json:"image_url"`
 	Caption  string `json:"caption"`
 	ViewOnce bool   `json:"view_once"`
+}
+
+// SendAudioInput represents the input for sending an audio message.
+type SendAudioInput struct {
+	To       string `json:"to"`
+	AudioURL string `json:"audio_url"`
+	IsPTT    bool   `json:"is_ptt"`
+	ViewOnce bool   `json:"view_once"`
+}
+
+// SendAudioMessageDirect sends an audio message.
+func SendAudioMessageDirect(client gateway.GatewayClient, input SendAudioInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.AudioURL == "" {
+		return SendMessageResult{}, fmt.Errorf("audio URL is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), mediaDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.AudioURL, nil)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_audio_message: invalid audio URL: %w", err)
+	}
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_audio_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_audio_message: audio URL returned %d", dlResp.StatusCode)
+	}
+
+	resp, err := client.SendAudio(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.IsPTT, input.ViewOnce)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_audio_message: %w", err)
+	}
+
+	return toSendResult(resp), nil
+}
+
+// SendVideoInput represents the input for sending a video message.
+type SendVideoInput struct {
+	To       string `json:"to"`
+	VideoURL string `json:"video_url"`
+	Caption  string `json:"caption"`
+	IsGif    bool   `json:"is_gif"`
+	ViewOnce bool   `json:"view_once"`
+}
+
+// SendVideoMessageDirect sends a video message.
+func SendVideoMessageDirect(client gateway.GatewayClient, input SendVideoInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.VideoURL == "" {
+		return SendMessageResult{}, fmt.Errorf("video URL is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), mediaDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.VideoURL, nil)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_video_message: invalid video URL: %w", err)
+	}
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_video_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_video_message: video URL returned %d", dlResp.StatusCode)
+	}
+
+	resp, err := client.SendVideo(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.Caption, input.IsGif, input.ViewOnce)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_video_message: %w", err)
+	}
+
+	return toSendResult(resp), nil
+}
+
+// SendDocumentInput represents the input for sending a document message.
+type SendDocumentInput struct {
+	To          string `json:"to"`
+	DocumentURL string `json:"document_url"`
+	FileName    string `json:"file_name"`
+	Caption     string `json:"caption"`
+}
+
+// SendDocumentMessageDirect sends a document message.
+func SendDocumentMessageDirect(client gateway.GatewayClient, input SendDocumentInput) (SendMessageResult, error) {
+	if input.To == "" {
+		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	}
+	if input.DocumentURL == "" {
+		return SendMessageResult{}, fmt.Errorf("document URL is required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), mediaDownloadTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, input.DocumentURL, nil)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_document_message: invalid document URL: %w", err)
+	}
+	dlResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_document_message: download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode < 200 || dlResp.StatusCode >= 300 {
+		return SendMessageResult{}, fmt.Errorf("send_document_message: document URL returned %d", dlResp.StatusCode)
+	}
+
+	resp, err := client.SendDocument(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.FileName, input.Caption)
+	if err != nil {
+		return SendMessageResult{}, fmt.Errorf("send_document_message: %w", err)
+	}
+
+	return toSendResult(resp), nil
 }
 
 // SendImageMessageDirect sends an image message
@@ -87,11 +231,7 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // EditMessageInput represents the input for editing a message
@@ -166,9 +306,10 @@ func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput)
 
 // ReactToMessageInput represents the input for reacting to a message
 type ReactToMessageInput struct {
-	To        string `json:"to"`
-	MessageID string `json:"message_id"`
-	Emoji     string `json:"emoji"`
+	To           string `json:"to"`
+	MessageID    string `json:"message_id"`
+	Emoji        string `json:"emoji"`
+	SenderMsisdn string `json:"sender_msisdn,omitempty"`
 }
 
 // ReactToMessageResult represents the result of reacting to a message
@@ -190,7 +331,12 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 	}
 
 	ctx := context.Background()
-	err := client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji)
+	var err error
+	if input.SenderMsisdn != "" {
+		err = client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji, waga.FormatMSISDN(input.SenderMsisdn))
+	} else {
+		err = client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji)
+	}
 	if err != nil {
 		return ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
 	}
@@ -228,11 +374,7 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 		return SendMessageResult{}, fmt.Errorf("send_location_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendPollInput represents the input for sending a poll message
@@ -261,11 +403,7 @@ func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (S
 		return SendMessageResult{}, fmt.Errorf("send_poll_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
-	}, nil
+	return toSendResult(resp), nil
 }
 
 // SendStickerInput represents the input for sending a sticker message
@@ -304,9 +442,80 @@ func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInp
 		return SendMessageResult{}, fmt.Errorf("send_sticker_message: %w", err)
 	}
 
-	return SendMessageResult{
-		Success:   resp.Success,
-		MessageID: resp.MessageID,
-		Status:    "sent",
+	return toSendResult(resp), nil
+}
+
+// CheckContactInput represents the input for checking a contact registration.
+type CheckContactInput struct {
+	Msisdn string `json:"msisdn"`
+}
+
+// CheckContactResult represents the result of checking contact registration.
+type CheckContactResult struct {
+	Query        string  `json:"query"`
+	JID          string  `json:"jid"`
+	IsOnWhatsApp bool    `json:"is_on_whatsapp"`
+	VerifiedName *string `json:"verified_name,omitempty"`
+}
+
+// CheckContactDirect checks whether the number is registered on WhatsApp.
+func CheckContactDirect(client gateway.GatewayClient, input CheckContactInput) (CheckContactResult, error) {
+	if input.Msisdn == "" {
+		return CheckContactResult{}, fmt.Errorf("msisdn is required")
+	}
+
+	resp, err := client.CheckContact(context.Background(), input.Msisdn)
+	if err != nil {
+		return CheckContactResult{}, fmt.Errorf("check_contact: %w", err)
+	}
+
+	return CheckContactResult{
+		Query:        resp.Query,
+		JID:          resp.JID,
+		IsOnWhatsApp: resp.IsOnWhatsApp,
+		VerifiedName: resp.VerifiedName,
 	}, nil
+}
+
+// GetJobStatusInput represents the input for polling a queued message job.
+type GetJobStatusInput struct {
+	JobID string `json:"job_id"`
+}
+
+// JobStatusResult represents the status of a queued message job.
+type JobStatusResult struct {
+	JobID       string `json:"job_id"`
+	Status      string `json:"status"`
+	MessageID   string `json:"message_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// GetJobStatusDirect polls the status of a queued message job by its ID.
+func GetJobStatusDirect(client gateway.GatewayClient, input GetJobStatusInput) (JobStatusResult, error) {
+	if input.JobID == "" {
+		return JobStatusResult{}, fmt.Errorf("job_id is required")
+	}
+
+	resp, err := client.GetJobStatus(context.Background(), input.JobID)
+	if err != nil {
+		return JobStatusResult{}, fmt.Errorf("get_job_status: %w", err)
+	}
+
+	result := JobStatusResult{
+		JobID:     resp.JobID,
+		Status:    resp.Status,
+		CreatedAt: resp.CreatedAt,
+	}
+	if resp.MessageID != nil {
+		result.MessageID = *resp.MessageID
+	}
+	if resp.Error != nil {
+		result.Error = *resp.Error
+	}
+	if resp.CompletedAt != nil {
+		result.CompletedAt = *resp.CompletedAt
+	}
+	return result, nil
 }

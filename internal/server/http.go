@@ -13,8 +13,8 @@ import (
 
 // HTTPServer wraps the HTTP MCP server instance
 type HTTPServer struct {
-	server *mcp.Server
-	port   string
+	server  *mcp.Server
+	port    string
 	handler http.Handler
 }
 
@@ -26,7 +26,6 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Version: "1.0.0",
 	}, nil)
 
-
 	// Register all tools (same as stdio)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "send_text_message",
@@ -37,6 +36,21 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Name:        "send_image_message",
 		Description: "Send an image message to a WhatsApp contact or group",
 	}, createSendImageMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_audio_message",
+		Description: "Send an audio message to a WhatsApp contact or group",
+	}, createSendAudioMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_video_message",
+		Description: "Send a video message to a WhatsApp contact or group",
+	}, createSendVideoMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_document_message",
+		Description: "Send a document message to a WhatsApp contact or group",
+	}, createSendDocumentMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "edit_message",
@@ -69,14 +83,24 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, createSendStickerMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_job_status",
+		Description: "Poll the status of a queued message job by its job_id (returned by send_* tools when the gateway runs in queue mode). Returns status (queued/processing/completed/failed), the message_id once completed, and any error.",
+	}, createGetJobStatusHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
-		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
 		Description: "Check if the WhatsApp session is active and authenticated",
 	}, createCheckConnectionStatusHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "check_contact",
+		Description: "Check whether a phone number is registered on WhatsApp",
+	}, createCheckContactHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_health",
@@ -110,8 +134,8 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, nil)
 
 	return &HTTPServer{
-		server: server,
-		port:   cfg.GetPort(),
+		server:  server,
+		port:    cfg.GetPort(),
 		handler: handler,
 	}, nil
 }

@@ -40,6 +40,21 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 	}, createSendImageMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_audio_message",
+		Description: "Send an audio message to a WhatsApp contact or group",
+	}, createSendAudioMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_video_message",
+		Description: "Send a video message to a WhatsApp contact or group",
+	}, createSendVideoMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_document_message",
+		Description: "Send a document message to a WhatsApp contact or group",
+	}, createSendDocumentMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "edit_message",
 		Description: "Edit a previously sent message",
 	}, createEditMessageHandler(gatewayClient))
@@ -69,10 +84,15 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Description: "Send a sticker from a URL to a WhatsApp number or group",
 	}, createSendStickerMessageHandler(gatewayClient))
 
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_job_status",
+		Description: "Poll the status of a queued message job by its job_id (returned by send_* tools when the gateway runs in queue mode). Returns status (queued/processing/completed/failed), the message_id once completed, and any error.",
+	}, createGetJobStatusHandler(gatewayClient))
+
 	// Register inbox tools
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_latest_incoming_messages",
-		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first. Optional limit (default 10, max 50).",
+		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
 
 	// Register connection tools
@@ -80,6 +100,11 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Name:        "check_connection_status",
 		Description: "Check if the WhatsApp session is active and authenticated",
 	}, createCheckConnectionStatusHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "check_contact",
+		Description: "Check whether a phone number is registered on WhatsApp",
+	}, createCheckContactHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_health",
@@ -121,6 +146,36 @@ func createSendTextMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolH
 func createSendImageMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendImageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendImageInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.SendImageMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendAudioMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendAudioInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendAudioInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendAudioMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendVideoMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendVideoInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendVideoInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendVideoMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendDocumentMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendDocumentInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendDocumentInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendDocumentMessageDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -188,6 +243,16 @@ func createSendStickerMessageHandler(gatewayClient gateway.GatewayClient) mcp.To
 	}
 }
 
+func createGetJobStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetJobStatusInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetJobStatusInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.GetJobStatusDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
 func createGetLatestIncomingMessagesHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetLatestIncomingMessagesInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetLatestIncomingMessagesInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.GetLatestIncomingMessagesDirect(gatewayClient, input)
@@ -201,6 +266,16 @@ func createGetLatestIncomingMessagesHandler(gatewayClient gateway.GatewayClient)
 func createCheckConnectionStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckConnectionStatusInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckConnectionStatusInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.CheckConnectionStatusDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createCheckContactHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckContactInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckContactInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.CheckContactDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}

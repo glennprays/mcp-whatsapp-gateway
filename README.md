@@ -72,8 +72,9 @@ Before using this MCP server, you need:
 - **HTTP+SSE**: For web-based MCP clients with configurable Basic authentication
 
 **Key Features:**
-- Send text, image, location, poll, and sticker messages to WhatsApp contacts and groups
+- Send text, image, audio, video, document, location, poll, and sticker messages to WhatsApp contacts and groups
 - Edit, delete, and react to sent messages
+- Check whether a number is registered on WhatsApp
 - Check WhatsApp connection status
 - Manage webhook URLs for incoming message notifications
 - Health monitoring for the gateway service
@@ -327,6 +328,40 @@ Send an image message to a WhatsApp contact or group.
 
 **Returns:** Message ID and status
 
+#### send_audio_message
+Send an audio message to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+- `audio_url` (string, required): URL of the audio file to send
+- `is_ptt` (boolean, optional): Send as voice note bubble (default: false)
+- `view_once` (boolean, optional): Send as view-once media (default: false)
+
+**Returns:** Message ID and status
+
+#### send_video_message
+Send a video message to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+- `video_url` (string, required): URL of the video file to send
+- `caption` (string, optional): Video caption
+- `is_gif` (boolean, optional): Render as GIF-style playback (default: false)
+- `view_once` (boolean, optional): Send as view-once media (default: false)
+
+**Returns:** Message ID and status
+
+#### send_document_message
+Send a document message to a WhatsApp contact or group.
+
+**Input:**
+- `to` (string, required): Recipient address in JID format
+- `document_url` (string, required): URL of the file to send
+- `file_name` (string, optional): Override filename shown in WhatsApp
+- `caption` (string, optional): Document caption
+
+**Returns:** Message ID and status
+
 #### send_location_message
 Send a location message with GPS coordinates to a WhatsApp contact or group.
 
@@ -421,6 +456,14 @@ Check if the WhatsApp session is active.
 **Input:** None
 
 **Returns:** Authentication status and connection information
+
+#### check_contact
+Check whether a phone number is registered on WhatsApp.
+
+**Input:**
+- `msisdn` (string, required): Phone number or JID to validate
+
+**Returns:** Query result with canonical JID, `is_on_whatsapp`, and optional `verified_name`
 
 #### check_health
 Check if the WhatsApp Gateway service is reachable.

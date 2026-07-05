@@ -20,18 +20,23 @@ type GatewayClient interface {
 	// Message operations
 	SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error)
 	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error)
+	SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error)
+	SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error)
+	SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error)
 	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error)
 	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error)
 	SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error)
 	EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessage(ctx context.Context, msisdn, messageID string) error
-	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error
+	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error
 
 	// Read operations
 	GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
+	GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error)
 
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
+	CheckContact(ctx context.Context, msisdn string) (*ContactCheckResponse, error)
 	Health(ctx context.Context) (*HealthResponse, error)
 
 	// Webhook operations
@@ -95,6 +100,8 @@ func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMes
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -108,6 +115,53 @@ func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, 
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
+	}, nil
+}
+
+// SendAudio sends an audio message to the specified recipient
+func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error) {
+	resp, err := c.client.SendAudio(ctx, msisdn, audio, isPTT, isViewOnce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send audio message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
+	}, nil
+}
+
+// SendVideo sends a video message to the specified recipient
+func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error) {
+	resp, err := c.client.SendVideo(ctx, msisdn, video, caption, isGif, isViewOnce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send video message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
+	}, nil
+}
+
+// SendDocument sends a document message to the specified recipient
+func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error) {
+	resp, err := c.client.SendDocument(ctx, msisdn, document, fileName, caption)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send document message: %w", err)
+	}
+
+	return &SendMessageResponse{
+		Success:   resp.Success,
+		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -121,6 +175,8 @@ func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, long
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -134,6 +190,8 @@ func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options 
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -147,6 +205,8 @@ func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Read
 	return &SendMessageResponse{
 		Success:   resp.Success,
 		MessageID: resp.MessageId,
+		Status:    resp.Status,
+		JobID:     resp.JobID,
 	}, nil
 }
 
@@ -169,8 +229,8 @@ func (c *Client) DeleteMessage(ctx context.Context, msisdn, messageID string) er
 }
 
 // ReactToMessage reacts to a message with an emoji
-func (c *Client) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error {
-	err := c.client.React(ctx, msisdn, messageID, emoji)
+func (c *Client) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error {
+	err := c.client.React(ctx, msisdn, messageID, emoji, senderMsisdn...)
 	if err != nil {
 		return fmt.Errorf("failed to react to message: %w", err)
 	}
@@ -190,6 +250,22 @@ func (c *Client) GetIncomingMessages(ctx context.Context, limit int) (*waga.Inco
 	return resp, nil
 }
 
+// GetJobStatus polls the status of a queued message job by its ID.
+func (c *Client) GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error) {
+	resp, err := c.client.GetJobStatus(ctx, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get job status: %w", err)
+	}
+	return &JobStatusResponse{
+		JobID:       resp.JobID,
+		Status:      resp.Status,
+		MessageID:   resp.MessageID,
+		Error:       resp.Error,
+		CreatedAt:   resp.CreatedAt,
+		CompletedAt: resp.CompletedAt,
+	}, nil
+}
+
 // GetLoginStatus checks if the WhatsApp session is authenticated
 func (c *Client) GetLoginStatus(ctx context.Context) (*LoginStatus, error) {
 	status, err := c.client.GetLoginStatus(ctx)
@@ -199,6 +275,21 @@ func (c *Client) GetLoginStatus(ctx context.Context) (*LoginStatus, error) {
 
 	return &LoginStatus{
 		Authenticated: status.Authenticated,
+	}, nil
+}
+
+// CheckContact validates if a recipient number is on WhatsApp.
+func (c *Client) CheckContact(ctx context.Context, msisdn string) (*ContactCheckResponse, error) {
+	contact, err := c.client.CheckContact(ctx, msisdn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check contact: %w", err)
+	}
+
+	return &ContactCheckResponse{
+		Query:        contact.Query,
+		JID:          contact.JID,
+		IsOnWhatsApp: contact.IsOnWhatsApp,
+		VerifiedName: contact.VerifiedName,
 	}, nil
 }
 
@@ -258,15 +349,39 @@ func (c *Client) IsHealthy(ctx context.Context) bool {
 
 // Response types - these wrap the SDK types for consistency
 
-// SendMessageResponse represents the response from sending a message
+// SendMessageResponse represents the response from sending a message.
+//
+// In direct mode the gateway returns MessageID. In queue mode it returns
+// Status ("queued") and JobID instead, with an empty MessageID — poll the
+// job with GetJobStatus to obtain the final message ID/outcome.
 type SendMessageResponse struct {
 	Success   bool   `json:"success"`
 	MessageID string `json:"message_id"`
+	Status    string `json:"status,omitempty"`
+	JobID     string `json:"job_id,omitempty"`
+}
+
+// JobStatusResponse represents the status of a queued message job.
+type JobStatusResponse struct {
+	JobID       string  `json:"job_id"`
+	Status      string  `json:"status"`
+	MessageID   *string `json:"message_id,omitempty"`
+	Error       *string `json:"error,omitempty"`
+	CreatedAt   string  `json:"created_at"`
+	CompletedAt *string `json:"completed_at,omitempty"`
 }
 
 // LoginStatus represents the WhatsApp session status
 type LoginStatus struct {
 	Authenticated bool `json:"authenticated"`
+}
+
+// ContactCheckResponse represents a contact validation result.
+type ContactCheckResponse struct {
+	Query        string  `json:"query"`
+	JID          string  `json:"jid"`
+	IsOnWhatsApp bool    `json:"is_on_whatsapp"`
+	VerifiedName *string `json:"verified_name,omitempty"`
 }
 
 // HealthResponse represents the gateway health status
