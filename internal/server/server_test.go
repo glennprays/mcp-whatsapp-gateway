@@ -21,6 +21,18 @@ func (m *mockGatewayClient) SendImage(ctx context.Context, msisdn string, image 
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_img_msg_id"}, nil
 }
 
+func (m *mockGatewayClient) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_audio_msg_id"}, nil
+}
+
+func (m *mockGatewayClient) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_video_msg_id"}, nil
+}
+
+func (m *mockGatewayClient) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*gateway.SendMessageResponse, error) {
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_doc_msg_id"}, nil
+}
+
 func (m *mockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_loc_msg_id"}, nil
 }
@@ -41,12 +53,16 @@ func (m *mockGatewayClient) DeleteMessage(ctx context.Context, msisdn, messageID
 	return nil
 }
 
-func (m *mockGatewayClient) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error {
+func (m *mockGatewayClient) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error {
 	return nil
 }
 
 func (m *mockGatewayClient) GetLoginStatus(ctx context.Context) (*gateway.LoginStatus, error) {
 	return &gateway.LoginStatus{Authenticated: true}, nil
+}
+
+func (m *mockGatewayClient) CheckContact(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error) {
+	return &gateway.ContactCheckResponse{Query: msisdn, JID: msisdn, IsOnWhatsApp: true}, nil
 }
 
 func (m *mockGatewayClient) Health(ctx context.Context) (*gateway.HealthResponse, error) {
@@ -170,4 +186,3 @@ func TestHTTPServer_Close(t *testing.T) {
 		t.Errorf("Close() failed: %v", err)
 	}
 }
-

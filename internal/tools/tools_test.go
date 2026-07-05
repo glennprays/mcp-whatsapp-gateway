@@ -16,15 +16,19 @@ import (
 type MockGatewayClient struct {
 	SendTextFunc            func(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error)
 	SendImageFunc           func(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error)
+	SendAudioFunc           func(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*gateway.SendMessageResponse, error)
+	SendVideoFunc           func(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*gateway.SendMessageResponse, error)
+	SendDocumentFunc        func(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*gateway.SendMessageResponse, error)
 	SendLocationFunc        func(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error)
 	SendPollFunc            func(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*gateway.SendMessageResponse, error)
 	SendStickerFunc         func(ctx context.Context, msisdn string, sticker io.Reader) (*gateway.SendMessageResponse, error)
 	EditMessageFunc         func(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessageFunc       func(ctx context.Context, msisdn, messageID string) error
-	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string) error
+	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error
 	GetIncomingMessagesFunc func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
 	GetJobStatusFunc        func(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error)
 	GetLoginStatusFunc      func(ctx context.Context) (*gateway.LoginStatus, error)
+	CheckContactFunc        func(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error)
 	HealthFunc              func(ctx context.Context) (*gateway.HealthResponse, error)
 	GetWebhookFunc          func(ctx context.Context) (*gateway.WebhookResponse, error)
 	RegisterWebhookFunc     func(ctx context.Context, url, hmacSecret string) error
@@ -43,6 +47,27 @@ func (m *MockGatewayClient) SendImage(ctx context.Context, msisdn string, image 
 		return m.SendImageFunc(ctx, msisdn, image, caption, isViewOnce)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_img_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+	if m.SendAudioFunc != nil {
+		return m.SendAudioFunc(ctx, msisdn, audio, isPTT, isViewOnce)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_audio_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+	if m.SendVideoFunc != nil {
+		return m.SendVideoFunc(ctx, msisdn, video, caption, isGif, isViewOnce)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_video_msg_id"}, nil
+}
+
+func (m *MockGatewayClient) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*gateway.SendMessageResponse, error) {
+	if m.SendDocumentFunc != nil {
+		return m.SendDocumentFunc(ctx, msisdn, document, fileName, caption)
+	}
+	return &gateway.SendMessageResponse{Success: true, MessageID: "test_document_msg_id"}, nil
 }
 
 func (m *MockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
@@ -80,9 +105,9 @@ func (m *MockGatewayClient) DeleteMessage(ctx context.Context, msisdn, messageID
 	return nil
 }
 
-func (m *MockGatewayClient) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string) error {
+func (m *MockGatewayClient) ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error {
 	if m.ReactToMessageFunc != nil {
-		return m.ReactToMessageFunc(ctx, msisdn, messageID, emoji)
+		return m.ReactToMessageFunc(ctx, msisdn, messageID, emoji, senderMsisdn...)
 	}
 	return nil
 }
@@ -92,6 +117,17 @@ func (m *MockGatewayClient) GetLoginStatus(ctx context.Context) (*gateway.LoginS
 		return m.GetLoginStatusFunc(ctx)
 	}
 	return &gateway.LoginStatus{Authenticated: true}, nil
+}
+
+func (m *MockGatewayClient) CheckContact(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error) {
+	if m.CheckContactFunc != nil {
+		return m.CheckContactFunc(ctx, msisdn)
+	}
+	return &gateway.ContactCheckResponse{
+		Query:        msisdn,
+		JID:          msisdn,
+		IsOnWhatsApp: true,
+	}, nil
 }
 
 func (m *MockGatewayClient) Health(ctx context.Context) (*gateway.HealthResponse, error) {
@@ -292,6 +328,84 @@ func TestSendImageMessage_DownloadFailure(t *testing.T) {
 	_, err := SendImageMessageDirect(mockClient, input)
 	if err == nil {
 		t.Fatal("Expected error for failed image download")
+	}
+}
+
+func TestSendAudioMessage_Success(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/ogg")
+		w.Write([]byte("fake-audio-data"))
+	}))
+	defer ts.Close()
+
+	mockClient := &MockGatewayClient{
+		SendAudioFunc: func(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+			return &gateway.SendMessageResponse{Success: true, MessageID: "audio123"}, nil
+		},
+	}
+
+	result, err := SendAudioMessageDirect(mockClient, SendAudioInput{
+		To:       "6281234567890@s.whatsapp.net",
+		AudioURL: ts.URL + "/audio.ogg",
+		IsPTT:    true,
+	})
+	if err != nil {
+		t.Fatalf("SendAudioMessageDirect() failed: %v", err)
+	}
+	if result.MessageID != "audio123" {
+		t.Errorf("Expected message ID 'audio123', got '%s'", result.MessageID)
+	}
+}
+
+func TestSendVideoMessage_Success(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Write([]byte("fake-video-data"))
+	}))
+	defer ts.Close()
+
+	mockClient := &MockGatewayClient{
+		SendVideoFunc: func(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+			return &gateway.SendMessageResponse{Success: true, MessageID: "video123"}, nil
+		},
+	}
+
+	result, err := SendVideoMessageDirect(mockClient, SendVideoInput{
+		To:       "6281234567890@s.whatsapp.net",
+		VideoURL: ts.URL + "/video.mp4",
+		Caption:  "hello",
+	})
+	if err != nil {
+		t.Fatalf("SendVideoMessageDirect() failed: %v", err)
+	}
+	if result.MessageID != "video123" {
+		t.Errorf("Expected message ID 'video123', got '%s'", result.MessageID)
+	}
+}
+
+func TestSendDocumentMessage_Success(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Write([]byte("fake-document-data"))
+	}))
+	defer ts.Close()
+
+	mockClient := &MockGatewayClient{
+		SendDocumentFunc: func(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*gateway.SendMessageResponse, error) {
+			return &gateway.SendMessageResponse{Success: true, MessageID: "doc123"}, nil
+		},
+	}
+
+	result, err := SendDocumentMessageDirect(mockClient, SendDocumentInput{
+		To:          "6281234567890@s.whatsapp.net",
+		DocumentURL: ts.URL + "/doc.pdf",
+		FileName:    "doc.pdf",
+	})
+	if err != nil {
+		t.Fatalf("SendDocumentMessageDirect() failed: %v", err)
+	}
+	if result.MessageID != "doc123" {
+		t.Errorf("Expected message ID 'doc123', got '%s'", result.MessageID)
 	}
 }
 
@@ -844,6 +958,26 @@ func TestGetLatestIncomingMessages_GatewayError(t *testing.T) {
 	}
 	if got := err.Error(); got == "" || got[:len("get_latest_incoming_messages")] != "get_latest_incoming_messages" {
 		t.Errorf("expected error prefixed with tool name, got %q", got)
+	}
+}
+
+func TestCheckContact_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		CheckContactFunc: func(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error) {
+			return &gateway.ContactCheckResponse{
+				Query:        "6281234567890",
+				JID:          "6281234567890@s.whatsapp.net",
+				IsOnWhatsApp: true,
+			}, nil
+		},
+	}
+
+	res, err := CheckContactDirect(mockClient, CheckContactInput{Msisdn: "6281234567890"})
+	if err != nil {
+		t.Fatalf("CheckContactDirect failed: %v", err)
+	}
+	if !res.IsOnWhatsApp {
+		t.Fatal("expected IsOnWhatsApp true")
 	}
 }
 

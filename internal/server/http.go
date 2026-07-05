@@ -13,8 +13,8 @@ import (
 
 // HTTPServer wraps the HTTP MCP server instance
 type HTTPServer struct {
-	server *mcp.Server
-	port   string
+	server  *mcp.Server
+	port    string
 	handler http.Handler
 }
 
@@ -26,7 +26,6 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Version: "1.0.0",
 	}, nil)
 
-
 	// Register all tools (same as stdio)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "send_text_message",
@@ -37,6 +36,21 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Name:        "send_image_message",
 		Description: "Send an image message to a WhatsApp contact or group",
 	}, createSendImageMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_audio_message",
+		Description: "Send an audio message to a WhatsApp contact or group",
+	}, createSendAudioMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_video_message",
+		Description: "Send a video message to a WhatsApp contact or group",
+	}, createSendVideoMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_document_message",
+		Description: "Send a document message to a WhatsApp contact or group",
+	}, createSendDocumentMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "edit_message",
@@ -84,6 +98,11 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, createCheckConnectionStatusHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "check_contact",
+		Description: "Check whether a phone number is registered on WhatsApp",
+	}, createCheckContactHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_health",
 		Description: "Check if the WhatsApp Gateway service is reachable",
 	}, createCheckHealthHandler(gatewayClient))
@@ -115,8 +134,8 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	}, nil)
 
 	return &HTTPServer{
-		server: server,
-		port:   cfg.GetPort(),
+		server:  server,
+		port:    cfg.GetPort(),
 		handler: handler,
 	}, nil
 }

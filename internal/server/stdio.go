@@ -40,6 +40,21 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 	}, createSendImageMessageHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_audio_message",
+		Description: "Send an audio message to a WhatsApp contact or group",
+	}, createSendAudioMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_video_message",
+		Description: "Send a video message to a WhatsApp contact or group",
+	}, createSendVideoMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_document_message",
+		Description: "Send a document message to a WhatsApp contact or group",
+	}, createSendDocumentMessageHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "edit_message",
 		Description: "Edit a previously sent message",
 	}, createEditMessageHandler(gatewayClient))
@@ -87,6 +102,11 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 	}, createCheckConnectionStatusHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "check_contact",
+		Description: "Check whether a phone number is registered on WhatsApp",
+	}, createCheckContactHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_health",
 		Description: "Check if the WhatsApp Gateway service is reachable",
 	}, createCheckHealthHandler(gatewayClient))
@@ -126,6 +146,36 @@ func createSendTextMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolH
 func createSendImageMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendImageInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendImageInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.SendImageMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendAudioMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendAudioInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendAudioInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendAudioMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendVideoMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendVideoInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendVideoInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendVideoMessageDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendDocumentMessageHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendDocumentInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendDocumentInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendDocumentMessageDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -216,6 +266,16 @@ func createGetLatestIncomingMessagesHandler(gatewayClient gateway.GatewayClient)
 func createCheckConnectionStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckConnectionStatusInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckConnectionStatusInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.CheckConnectionStatusDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createCheckContactHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.CheckContactInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.CheckContactInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.CheckContactDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}
