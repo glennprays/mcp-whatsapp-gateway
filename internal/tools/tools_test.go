@@ -33,58 +33,70 @@ type MockGatewayClient struct {
 	GetWebhookFunc          func(ctx context.Context) (*gateway.WebhookResponse, error)
 	RegisterWebhookFunc     func(ctx context.Context, url, hmacSecret string) error
 	DeleteWebhookFunc       func(ctx context.Context) error
+
+	// CapturedSendOpts records the SendOptions passed to the most recent send,
+	// so tests can assert chat/reply/mention options were built and forwarded.
+	CapturedSendOpts []waga.SendOption
 }
 
-func (m *MockGatewayClient) SendText(ctx context.Context, msisdn, message string) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendText(ctx context.Context, msisdn, message string, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendTextFunc != nil {
 		return m.SendTextFunc(ctx, msisdn, message)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendImageFunc != nil {
 		return m.SendImageFunc(ctx, msisdn, image, caption, isViewOnce)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_img_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendAudioFunc != nil {
 		return m.SendAudioFunc(ctx, msisdn, audio, isPTT, isViewOnce)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_audio_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendVideoFunc != nil {
 		return m.SendVideoFunc(ctx, msisdn, video, caption, isGif, isViewOnce)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_video_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendDocumentFunc != nil {
 		return m.SendDocumentFunc(ctx, msisdn, document, fileName, caption)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_document_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendLocationFunc != nil {
 		return m.SendLocationFunc(ctx, msisdn, latitude, longitude, name, address)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_loc_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendPollFunc != nil {
 		return m.SendPollFunc(ctx, msisdn, question, options, selectableCount)
 	}
 	return &gateway.SendMessageResponse{Success: true, MessageID: "test_poll_msg_id"}, nil
 }
 
-func (m *MockGatewayClient) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*gateway.SendMessageResponse, error) {
+func (m *MockGatewayClient) SendSticker(ctx context.Context, msisdn string, sticker io.Reader, opts ...waga.SendOption) (*gateway.SendMessageResponse, error) {
+	m.CapturedSendOpts = opts
 	if m.SendStickerFunc != nil {
 		return m.SendStickerFunc(ctx, msisdn, sticker)
 	}
@@ -212,8 +224,67 @@ func TestSendTextMessage_MissingRecipient(t *testing.T) {
 		t.Fatal("Expected error for missing recipient")
 	}
 
-	if err.Error() != "recipient address (to) is required" {
+	if err.Error() != "recipient address (chat or to) is required" {
 		t.Errorf("Expected error about missing recipient, got: %v", err)
+	}
+}
+
+// Test chat/to precedence and send-option forwarding (commit 2)
+
+func TestResolveSendAddr_ChatWinsOverTo(t *testing.T) {
+	addr, err := resolveSendAddr("123@g.us", "628@s.whatsapp.net")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if addr != "123@g.us" {
+		t.Errorf("expected chat to win, got %q", addr)
+	}
+}
+
+func TestResolveSendAddr_FallsBackToTo(t *testing.T) {
+	addr, err := resolveSendAddr("", "628")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if addr != "628" {
+		t.Errorf("expected fallback to to, got %q", addr)
+	}
+}
+
+func TestResolveSendAddr_RequiresRecipient(t *testing.T) {
+	if _, err := resolveSendAddr("", ""); err == nil {
+		t.Error("expected error when neither chat nor to is set")
+	}
+}
+
+func TestSendText_ChatReplyMentionsForwarded(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+	_, err := SendTextMessageDirect(mockClient, SendMessageInput{
+		Chat:          "123@g.us",
+		To:            "628@s.whatsapp.net",
+		Message:       "hi",
+		ReplyToID:     "MSG1",
+		ReplyToSender: "629@s.whatsapp.net",
+		ReplyToText:   "original",
+		Mentions:      []string{"629@s.whatsapp.net"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// WithChat + WithReply + WithMentions
+	if len(mockClient.CapturedSendOpts) != 3 {
+		t.Errorf("expected 3 send options forwarded, got %d", len(mockClient.CapturedSendOpts))
+	}
+}
+
+func TestSendText_ChatOnlyForwardsSingleOption(t *testing.T) {
+	mockClient := &MockGatewayClient{}
+	_, err := SendTextMessageDirect(mockClient, SendMessageInput{Chat: "628", Message: "hi"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mockClient.CapturedSendOpts) != 1 {
+		t.Errorf("expected 1 send option (WithChat), got %d", len(mockClient.CapturedSendOpts))
 	}
 }
 

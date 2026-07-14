@@ -16,8 +16,48 @@ const mediaDownloadTimeout = 30 * time.Second
 
 // SendMessageInput represents the input for sending a text message
 type SendMessageInput struct {
-	To      string `json:"to"`
-	Message string `json:"message"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	Message       string   `json:"message"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
+}
+
+// buildSendOptions resolves the canonical recipient plus reply/mention threading
+// shared by every send tool.
+//
+// chat is canonical (a bare number, a user JID, an "@g.us" group, or a "@lid")
+// and wins over the back-compat to. The raw address is handed to the gateway via
+// WithChat — no FormatMSISDN force-wrapping, since the gateway resolves every
+// address form itself. reply_to_* quote a message; mentions @-tag numbers/JIDs.
+func buildSendOptions(chat, to, replyToID, replyToSender, replyToText string, mentions []string) ([]waga.SendOption, error) {
+	addr, err := resolveSendAddr(chat, to)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []waga.SendOption{waga.WithChat(addr)}
+	if replyToID != "" {
+		opts = append(opts, waga.WithReply(replyToID, replyToSender, replyToText))
+	}
+	if len(mentions) > 0 {
+		opts = append(opts, waga.WithMentions(mentions...))
+	}
+	return opts, nil
+}
+
+// resolveSendAddr picks the canonical recipient for a send: chat wins over the
+// back-compat to, and at least one must be set.
+func resolveSendAddr(chat, to string) (string, error) {
+	if chat != "" {
+		return chat, nil
+	}
+	if to != "" {
+		return to, nil
+	}
+	return "", fmt.Errorf("recipient address (chat or to) is required")
 }
 
 // SendMessageResult represents the result of sending a message.
@@ -53,15 +93,16 @@ func toSendResult(resp *gateway.SendMessageResponse) SendMessageResult {
 
 // SendTextMessageDirect sends a text message
 func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.Message == "" {
 		return SendMessageResult{}, fmt.Errorf("message content is required")
 	}
 
 	ctx := context.Background()
-	resp, err := client.SendText(ctx, waga.FormatMSISDN(input.To), input.Message)
+	resp, err := client.SendText(ctx, "", input.Message, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_text_message: %w", err)
 	}
@@ -71,24 +112,35 @@ func SendTextMessageDirect(client gateway.GatewayClient, input SendMessageInput)
 
 // SendImageInput represents the input for sending an image message
 type SendImageInput struct {
-	To       string `json:"to"`
-	ImageURL string `json:"image_url"`
-	Caption  string `json:"caption"`
-	ViewOnce bool   `json:"view_once"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	ImageURL      string   `json:"image_url"`
+	Caption       string   `json:"caption"`
+	ViewOnce      bool     `json:"view_once"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendAudioInput represents the input for sending an audio message.
 type SendAudioInput struct {
-	To       string `json:"to"`
-	AudioURL string `json:"audio_url"`
-	IsPTT    bool   `json:"is_ptt"`
-	ViewOnce bool   `json:"view_once"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	AudioURL      string   `json:"audio_url"`
+	IsPTT         bool     `json:"is_ptt"`
+	ViewOnce      bool     `json:"view_once"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendAudioMessageDirect sends an audio message.
 func SendAudioMessageDirect(client gateway.GatewayClient, input SendAudioInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.AudioURL == "" {
 		return SendMessageResult{}, fmt.Errorf("audio URL is required")
@@ -110,7 +162,7 @@ func SendAudioMessageDirect(client gateway.GatewayClient, input SendAudioInput) 
 		return SendMessageResult{}, fmt.Errorf("send_audio_message: audio URL returned %d", dlResp.StatusCode)
 	}
 
-	resp, err := client.SendAudio(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.IsPTT, input.ViewOnce)
+	resp, err := client.SendAudio(ctx, "", dlResp.Body, input.IsPTT, input.ViewOnce, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_audio_message: %w", err)
 	}
@@ -120,17 +172,23 @@ func SendAudioMessageDirect(client gateway.GatewayClient, input SendAudioInput) 
 
 // SendVideoInput represents the input for sending a video message.
 type SendVideoInput struct {
-	To       string `json:"to"`
-	VideoURL string `json:"video_url"`
-	Caption  string `json:"caption"`
-	IsGif    bool   `json:"is_gif"`
-	ViewOnce bool   `json:"view_once"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	VideoURL      string   `json:"video_url"`
+	Caption       string   `json:"caption"`
+	IsGif         bool     `json:"is_gif"`
+	ViewOnce      bool     `json:"view_once"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendVideoMessageDirect sends a video message.
 func SendVideoMessageDirect(client gateway.GatewayClient, input SendVideoInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.VideoURL == "" {
 		return SendMessageResult{}, fmt.Errorf("video URL is required")
@@ -152,7 +210,7 @@ func SendVideoMessageDirect(client gateway.GatewayClient, input SendVideoInput) 
 		return SendMessageResult{}, fmt.Errorf("send_video_message: video URL returned %d", dlResp.StatusCode)
 	}
 
-	resp, err := client.SendVideo(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.Caption, input.IsGif, input.ViewOnce)
+	resp, err := client.SendVideo(ctx, "", dlResp.Body, input.Caption, input.IsGif, input.ViewOnce, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_video_message: %w", err)
 	}
@@ -162,16 +220,22 @@ func SendVideoMessageDirect(client gateway.GatewayClient, input SendVideoInput) 
 
 // SendDocumentInput represents the input for sending a document message.
 type SendDocumentInput struct {
-	To          string `json:"to"`
-	DocumentURL string `json:"document_url"`
-	FileName    string `json:"file_name"`
-	Caption     string `json:"caption"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	DocumentURL   string   `json:"document_url"`
+	FileName      string   `json:"file_name"`
+	Caption       string   `json:"caption"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendDocumentMessageDirect sends a document message.
 func SendDocumentMessageDirect(client gateway.GatewayClient, input SendDocumentInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.DocumentURL == "" {
 		return SendMessageResult{}, fmt.Errorf("document URL is required")
@@ -193,7 +257,7 @@ func SendDocumentMessageDirect(client gateway.GatewayClient, input SendDocumentI
 		return SendMessageResult{}, fmt.Errorf("send_document_message: document URL returned %d", dlResp.StatusCode)
 	}
 
-	resp, err := client.SendDocument(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.FileName, input.Caption)
+	resp, err := client.SendDocument(ctx, "", dlResp.Body, input.FileName, input.Caption, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_document_message: %w", err)
 	}
@@ -203,8 +267,9 @@ func SendDocumentMessageDirect(client gateway.GatewayClient, input SendDocumentI
 
 // SendImageMessageDirect sends an image message
 func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.ImageURL == "" {
 		return SendMessageResult{}, fmt.Errorf("image URL is required")
@@ -226,7 +291,7 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 		return SendMessageResult{}, fmt.Errorf("send_image_message: image URL returned %d", dlResp.StatusCode)
 	}
 
-	resp, err := client.SendImage(ctx, waga.FormatMSISDN(input.To), dlResp.Body, input.Caption, input.ViewOnce)
+	resp, err := client.SendImage(ctx, "", dlResp.Body, input.Caption, input.ViewOnce, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_image_message: %w", err)
 	}
@@ -349,17 +414,23 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 
 // SendLocationInput represents the input for sending a location message
 type SendLocationInput struct {
-	To        string  `json:"to"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Name      string  `json:"name,omitempty"`
-	Address   string  `json:"address,omitempty"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	Latitude      float64  `json:"latitude"`
+	Longitude     float64  `json:"longitude"`
+	Name          string   `json:"name,omitempty"`
+	Address       string   `json:"address,omitempty"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendLocationMessageDirect sends a location message
 func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.Latitude < -90 || input.Latitude > 90 {
 		return SendMessageResult{}, fmt.Errorf("latitude must be between -90 and 90")
@@ -369,7 +440,7 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 	}
 
 	ctx := context.Background()
-	resp, err := client.SendLocation(ctx, waga.FormatMSISDN(input.To), input.Latitude, input.Longitude, input.Name, input.Address)
+	resp, err := client.SendLocation(ctx, "", input.Latitude, input.Longitude, input.Name, input.Address, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_location_message: %w", err)
 	}
@@ -379,16 +450,22 @@ func SendLocationMessageDirect(client gateway.GatewayClient, input SendLocationI
 
 // SendPollInput represents the input for sending a poll message
 type SendPollInput struct {
-	To              string   `json:"to"`
+	Chat            string   `json:"chat,omitempty"`
+	To              string   `json:"to,omitempty"`
 	Question        string   `json:"question"`
 	Options         []string `json:"options"`
 	SelectableCount int      `json:"selectable_count,omitempty"`
+	ReplyToID       string   `json:"reply_to_id,omitempty"`
+	ReplyToSender   string   `json:"reply_to_sender,omitempty"`
+	ReplyToText     string   `json:"reply_to_text,omitempty"`
+	Mentions        []string `json:"mentions,omitempty"`
 }
 
 // SendPollMessageDirect sends a poll message
 func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.Question == "" {
 		return SendMessageResult{}, fmt.Errorf("question is required")
@@ -398,7 +475,7 @@ func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (S
 	}
 
 	ctx := context.Background()
-	resp, err := client.SendPoll(ctx, waga.FormatMSISDN(input.To), input.Question, input.Options, input.SelectableCount)
+	resp, err := client.SendPoll(ctx, "", input.Question, input.Options, input.SelectableCount, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_poll_message: %w", err)
 	}
@@ -408,14 +485,20 @@ func SendPollMessageDirect(client gateway.GatewayClient, input SendPollInput) (S
 
 // SendStickerInput represents the input for sending a sticker message
 type SendStickerInput struct {
-	To         string `json:"to"`
-	StickerURL string `json:"sticker_url"`
+	Chat          string   `json:"chat,omitempty"`
+	To            string   `json:"to,omitempty"`
+	StickerURL    string   `json:"sticker_url"`
+	ReplyToID     string   `json:"reply_to_id,omitempty"`
+	ReplyToSender string   `json:"reply_to_sender,omitempty"`
+	ReplyToText   string   `json:"reply_to_text,omitempty"`
+	Mentions      []string `json:"mentions,omitempty"`
 }
 
 // SendStickerMessageDirect sends a sticker message
 func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInput) (SendMessageResult, error) {
-	if input.To == "" {
-		return SendMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	opts, err := buildSendOptions(input.Chat, input.To, input.ReplyToID, input.ReplyToSender, input.ReplyToText, input.Mentions)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
 	if input.StickerURL == "" {
 		return SendMessageResult{}, fmt.Errorf("sticker URL is required")
@@ -437,7 +520,7 @@ func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInp
 		return SendMessageResult{}, fmt.Errorf("send_sticker_message: sticker URL returned %d", dlResp.StatusCode)
 	}
 
-	resp, err := client.SendSticker(ctx, waga.FormatMSISDN(input.To), dlResp.Body)
+	resp, err := client.SendSticker(ctx, "", dlResp.Body, opts...)
 	if err != nil {
 		return SendMessageResult{}, fmt.Errorf("send_sticker_message: %w", err)
 	}

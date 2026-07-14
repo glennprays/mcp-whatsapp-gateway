@@ -17,15 +17,17 @@ const (
 
 // GatewayClient defines the interface for gateway operations
 type GatewayClient interface {
-	// Message operations
-	SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error)
-	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error)
-	SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error)
-	SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error)
-	SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error)
-	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error)
-	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error)
-	SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error)
+	// Message operations. Sends take a trailing variadic of SDK SendOptions
+	// (WithChat / WithReply / WithMentions) so callers can address by canonical
+	// chat and thread replies/mentions without changing the positional args.
+	SendText(ctx context.Context, msisdn, message string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendSticker(ctx context.Context, msisdn string, sticker io.Reader, opts ...waga.SendOption) (*SendMessageResponse, error)
 	EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessage(ctx context.Context, msisdn, messageID string) error
 	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error
@@ -91,8 +93,8 @@ func (c *Client) GetClient() *waga.Client {
 }
 
 // SendText sends a text message to the specified recipient
-func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendText(ctx, msisdn, message)
+func (c *Client) SendText(ctx context.Context, msisdn, message string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendText(ctx, msisdn, message, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
@@ -106,8 +108,8 @@ func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMes
 }
 
 // SendImage sends an image message to the specified recipient
-func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce)
+func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send image message: %w", err)
 	}
@@ -121,8 +123,8 @@ func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, 
 }
 
 // SendAudio sends an audio message to the specified recipient
-func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendAudio(ctx, msisdn, audio, isPTT, isViewOnce)
+func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendAudio(ctx, msisdn, audio, isPTT, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send audio message: %w", err)
 	}
@@ -136,8 +138,8 @@ func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, 
 }
 
 // SendVideo sends a video message to the specified recipient
-func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendVideo(ctx, msisdn, video, caption, isGif, isViewOnce)
+func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendVideo(ctx, msisdn, video, caption, isGif, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send video message: %w", err)
 	}
@@ -151,8 +153,8 @@ func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, 
 }
 
 // SendDocument sends a document message to the specified recipient
-func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendDocument(ctx, msisdn, document, fileName, caption)
+func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendDocument(ctx, msisdn, document, fileName, caption, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send document message: %w", err)
 	}
@@ -166,8 +168,8 @@ func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Re
 }
 
 // SendLocation sends a location message to the specified recipient
-func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendLocation(ctx, msisdn, latitude, longitude, name, address)
+func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendLocation(ctx, msisdn, latitude, longitude, name, address, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send location message: %w", err)
 	}
@@ -181,8 +183,8 @@ func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, long
 }
 
 // SendPoll sends a poll message to the specified recipient
-func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error) {
-	resp, err := c.client.SendPoll(ctx, msisdn, question, options, selectableCount)
+func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendPoll(ctx, msisdn, question, options, selectableCount, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send poll message: %w", err)
 	}
@@ -196,8 +198,8 @@ func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options 
 }
 
 // SendSticker sends a sticker message to the specified recipient
-func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error) {
-	resp, err := c.client.SendSticker(ctx, msisdn, sticker)
+func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Reader, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendSticker(ctx, msisdn, sticker, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send sticker message: %w", err)
 	}
