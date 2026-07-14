@@ -25,7 +25,7 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 	// Create MCP server instance
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "whatsapp-gateway",
-		Version: "1.0.0",
+		Version: "0.7.0",
 	}, nil)
 
 	// Register messaging tools using the SDK's typed handler system

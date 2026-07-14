@@ -23,7 +23,7 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	// Create MCP server instance
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "whatsapp-gateway",
-		Version: "1.0.0",
+		Version: "0.7.0",
 	}, nil)
 
 	// Register all tools (same as stdio)
