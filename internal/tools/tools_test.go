@@ -33,6 +33,8 @@ type MockGatewayClient struct {
 	GetAvatarFunc           func(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error)
 	ListGroupsFunc          func(ctx context.Context) (*waga.GroupListResponse, error)
 	GetGroupInfoFunc        func(ctx context.Context, chat string) (*waga.GroupInfoResponse, error)
+	MarkReadFunc            func(ctx context.Context, chat string, messageIDs []string, sender string) error
+	SendChatPresenceFunc    func(ctx context.Context, chat, state string) error
 	GetLoginStatusFunc      func(ctx context.Context) (*gateway.LoginStatus, error)
 	CheckContactFunc        func(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error)
 	HealthFunc              func(ctx context.Context) (*gateway.HealthResponse, error)
@@ -223,6 +225,20 @@ func (m *MockGatewayClient) GetGroupInfo(ctx context.Context, chat string) (*wag
 		return m.GetGroupInfoFunc(ctx, chat)
 	}
 	return &waga.GroupInfoResponse{JID: chat}, nil
+}
+
+func (m *MockGatewayClient) MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error {
+	if m.MarkReadFunc != nil {
+		return m.MarkReadFunc(ctx, chat, messageIDs, sender)
+	}
+	return nil
+}
+
+func (m *MockGatewayClient) SendChatPresence(ctx context.Context, chat, state string) error {
+	if m.SendChatPresenceFunc != nil {
+		return m.SendChatPresenceFunc(ctx, chat, state)
+	}
+	return nil
 }
 
 // Test SendTextMessageDirect
@@ -1329,5 +1345,73 @@ func TestGetGroupInfo_Success(t *testing.T) {
 	}
 	if res.Name != "Team" || len(res.Participants) != 1 || !res.Participants[0].IsAdmin {
 		t.Errorf("unexpected result: %+v", res)
+	}
+}
+
+// Test mark_read and send_typing tools (commit 4)
+
+func TestMarkRead_Success(t *testing.T) {
+	var gotChat, gotSender string
+	var gotIDs []string
+	mockClient := &MockGatewayClient{
+		MarkReadFunc: func(ctx context.Context, chat string, messageIDs []string, sender string) error {
+			gotChat, gotIDs, gotSender = chat, messageIDs, sender
+			return nil
+		},
+	}
+	res, err := MarkReadDirect(mockClient, MarkReadInput{
+		Chat:       "123@g.us",
+		MessageIDs: []string{"M1", "M2"},
+		Sender:     "628@s.whatsapp.net",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.Success || res.Status != "read" {
+		t.Errorf("unexpected result: %+v", res)
+	}
+	if gotChat != "123@g.us" || gotSender != "628@s.whatsapp.net" || len(gotIDs) != 2 {
+		t.Errorf("args not forwarded: chat=%q sender=%q ids=%v", gotChat, gotSender, gotIDs)
+	}
+}
+
+func TestMarkRead_RequiresChat(t *testing.T) {
+	if _, err := MarkReadDirect(&MockGatewayClient{}, MarkReadInput{MessageIDs: []string{"M1"}}); err == nil {
+		t.Error("expected error for empty chat")
+	}
+}
+
+func TestMarkRead_RequiresMessageIDs(t *testing.T) {
+	if _, err := MarkReadDirect(&MockGatewayClient{}, MarkReadInput{Chat: "628"}); err == nil {
+		t.Error("expected error for empty message_ids")
+	}
+}
+
+func TestSendTyping_Success(t *testing.T) {
+	var gotState string
+	mockClient := &MockGatewayClient{
+		SendChatPresenceFunc: func(ctx context.Context, chat, state string) error {
+			gotState = state
+			return nil
+		},
+	}
+	res, err := SendTypingDirect(mockClient, SendTypingInput{Chat: "628", State: "composing"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.Success || res.State != "composing" || gotState != "composing" {
+		t.Errorf("unexpected result: %+v (forwarded state %q)", res, gotState)
+	}
+}
+
+func TestSendTyping_InvalidState(t *testing.T) {
+	if _, err := SendTypingDirect(&MockGatewayClient{}, SendTypingInput{Chat: "628", State: "dancing"}); err == nil {
+		t.Error("expected error for invalid state")
+	}
+}
+
+func TestSendTyping_RequiresChat(t *testing.T) {
+	if _, err := SendTypingDirect(&MockGatewayClient{}, SendTypingInput{State: "composing"}); err == nil {
+		t.Error("expected error for empty chat")
 	}
 }

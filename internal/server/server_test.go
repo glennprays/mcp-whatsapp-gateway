@@ -109,6 +109,14 @@ func (m *mockGatewayClient) GetGroupInfo(ctx context.Context, chat string) (*wag
 	return &waga.GroupInfoResponse{JID: chat}, nil
 }
 
+func (m *mockGatewayClient) MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error {
+	return nil
+}
+
+func (m *mockGatewayClient) SendChatPresence(ctx context.Context, chat, state string) error {
+	return nil
+}
+
 func TestNewStdioServer_Success(t *testing.T) {
 	cfg := &config.Config{
 		WagaBaseURL:  "http://localhost:3000/api/v1",

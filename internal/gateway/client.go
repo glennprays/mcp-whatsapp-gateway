@@ -45,6 +45,12 @@ type GatewayClient interface {
 	ListGroups(ctx context.Context) (*waga.GroupListResponse, error)
 	GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error)
 
+	// Two-way conversation actions. These are outbound, conversation-affecting
+	// calls governed server-side by the gateway's outbound pacer (per-account
+	// pace + per-recipient cap); over-budget calls are paced or 429'd.
+	MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error
+	SendChatPresence(ctx context.Context, chat, state string) error
+
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
 	CheckContact(ctx context.Context, msisdn string) (*ContactCheckResponse, error)
@@ -323,6 +329,23 @@ func (c *Client) GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfo
 		return nil, fmt.Errorf("failed to get group info: %w", err)
 	}
 	return resp, nil
+}
+
+// MarkRead marks one or more messages in a chat as read (blue ticks). sender is
+// the message author's JID/number and is required for group chats.
+func (c *Client) MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error {
+	if err := c.client.MarkRead(ctx, chat, messageIDs, sender); err != nil {
+		return fmt.Errorf("failed to mark messages read: %w", err)
+	}
+	return nil
+}
+
+// SendChatPresence sets the typing indicator in a chat (composing/recording/paused).
+func (c *Client) SendChatPresence(ctx context.Context, chat, state string) error {
+	if err := c.client.SendChatPresence(ctx, chat, state); err != nil {
+		return fmt.Errorf("failed to send chat presence: %w", err)
+	}
+	return nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated

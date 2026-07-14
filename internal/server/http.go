@@ -118,6 +118,17 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Description: "Get one group's full detail plus its participant roster by chat (a @g.us group JID). The account must be a member (403 if not, 404 if absent).",
 	}, createGetGroupInfoHandler(gatewayClient))
 
+	// Two-way conversation tools (same as stdio)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mark_read",
+		Description: "Mark one or more messages in a chat as read (blue ticks). Provide chat (canonical recipient) and message_ids[]; sender (the message author's JID/number) is required for group chats. This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createMarkReadHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_typing",
+		Description: "Set the typing indicator in a chat: state = composing (typing…), recording (recording audio…), or paused (cleared). This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createSendTypingHandler(gatewayClient))
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
 		Description: "Check if the WhatsApp session is active and authenticated",

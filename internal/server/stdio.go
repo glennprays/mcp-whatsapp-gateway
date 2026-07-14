@@ -121,6 +121,17 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Description: "Get one group's full detail plus its participant roster by chat (a @g.us group JID). The account must be a member (403 if not, 404 if absent).",
 	}, createGetGroupInfoHandler(gatewayClient))
 
+	// Register two-way conversation tools
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mark_read",
+		Description: "Mark one or more messages in a chat as read (blue ticks). Provide chat (canonical recipient) and message_ids[]; sender (the message author's JID/number) is required for group chats. This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createMarkReadHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_typing",
+		Description: "Set the typing indicator in a chat: state = composing (typing…), recording (recording audio…), or paused (cleared). This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createSendTypingHandler(gatewayClient))
+
 	// Register connection tools
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",
@@ -332,6 +343,26 @@ func createListGroupsHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandle
 func createGetGroupInfoHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetGroupInfoInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetGroupInfoInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.GetGroupInfoDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createMarkReadHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.MarkReadInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.MarkReadInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.MarkReadDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendTypingHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendTypingInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendTypingInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendTypingDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}
