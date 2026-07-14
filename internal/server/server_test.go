@@ -89,6 +89,26 @@ func (m *mockGatewayClient) GetJobStatus(ctx context.Context, jobID string) (*ga
 	return &gateway.JobStatusResponse{JobID: jobID, Status: "completed"}, nil
 }
 
+func (m *mockGatewayClient) ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error) {
+	return &waga.ContactListResponse{Contacts: []waga.ContactListItem{}, Count: 0, Total: 0}, nil
+}
+
+func (m *mockGatewayClient) GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error) {
+	return &waga.ContactInfoResponse{JID: chat}, nil
+}
+
+func (m *mockGatewayClient) GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+	return &waga.AvatarResponse{JID: chat, URL: "https://cdn.example/avatar.jpg", ID: "abc", Type: "image"}, nil
+}
+
+func (m *mockGatewayClient) ListGroups(ctx context.Context) (*waga.GroupListResponse, error) {
+	return &waga.GroupListResponse{Groups: []waga.GroupListItem{}, Count: 0}, nil
+}
+
+func (m *mockGatewayClient) GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error) {
+	return &waga.GroupInfoResponse{JID: chat}, nil
+}
+
 func TestNewStdioServer_Success(t *testing.T) {
 	cfg := &config.Config{
 		WagaBaseURL:  "http://localhost:3000/api/v1",

@@ -36,6 +36,15 @@ type GatewayClient interface {
 	GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
 	GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error)
 
+	// Contact & group reads. These return the SDK response types directly; the
+	// error chains preserve the SDK sentinels (waga.IsNotFound / waga.IsForbidden)
+	// so tools can surface soft failures as results.
+	ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error)
+	GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error)
+	GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error)
+	ListGroups(ctx context.Context) (*waga.GroupListResponse, error)
+	GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error)
+
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
 	CheckContact(ctx context.Context, msisdn string) (*ContactCheckResponse, error)
@@ -266,6 +275,54 @@ func (c *Client) GetJobStatus(ctx context.Context, jobID string) (*JobStatusResp
 		CreatedAt:   resp.CreatedAt,
 		CompletedAt: resp.CompletedAt,
 	}, nil
+}
+
+// ListContacts returns a page of the account's locally-synced contacts. An empty
+// address book is not an error (the gateway never 404s on empty).
+func (c *Client) ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error) {
+	resp, err := c.client.ListContacts(ctx, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list contacts: %w", err)
+	}
+	return resp, nil
+}
+
+// GetContactInfo returns a server-side profile lookup for one user.
+func (c *Client) GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error) {
+	resp, err := c.client.GetContactInfo(ctx, chat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact info: %w", err)
+	}
+	return resp, nil
+}
+
+// GetAvatar returns a chat's profile picture. preview requests the low-res
+// thumbnail. The returned error preserves the SDK sentinels: a chat with no
+// picture yields waga.ErrNotFound (404), a hidden picture waga.ErrForbidden (403).
+func (c *Client) GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+	resp, err := c.client.GetAvatar(ctx, chat, preview)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get avatar: %w", err)
+	}
+	return resp, nil
+}
+
+// ListGroups returns the account's joined groups as lightweight summaries.
+func (c *Client) ListGroups(ctx context.Context) (*waga.GroupListResponse, error) {
+	resp, err := c.client.ListGroups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list groups: %w", err)
+	}
+	return resp, nil
+}
+
+// GetGroupInfo returns a single group's full detail plus its participant roster.
+func (c *Client) GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error) {
+	resp, err := c.client.GetGroupInfo(ctx, chat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group info: %w", err)
+	}
+	return resp, nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated

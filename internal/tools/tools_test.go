@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,11 @@ type MockGatewayClient struct {
 	ReactToMessageFunc      func(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error
 	GetIncomingMessagesFunc func(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
 	GetJobStatusFunc        func(ctx context.Context, jobID string) (*gateway.JobStatusResponse, error)
+	ListContactsFunc        func(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error)
+	GetContactInfoFunc      func(ctx context.Context, chat string) (*waga.ContactInfoResponse, error)
+	GetAvatarFunc           func(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error)
+	ListGroupsFunc          func(ctx context.Context) (*waga.GroupListResponse, error)
+	GetGroupInfoFunc        func(ctx context.Context, chat string) (*waga.GroupInfoResponse, error)
 	GetLoginStatusFunc      func(ctx context.Context) (*gateway.LoginStatus, error)
 	CheckContactFunc        func(ctx context.Context, msisdn string) (*gateway.ContactCheckResponse, error)
 	HealthFunc              func(ctx context.Context) (*gateway.HealthResponse, error)
@@ -182,6 +188,41 @@ func (m *MockGatewayClient) GetJobStatus(ctx context.Context, jobID string) (*ga
 		return m.GetJobStatusFunc(ctx, jobID)
 	}
 	return &gateway.JobStatusResponse{JobID: jobID, Status: "completed"}, nil
+}
+
+func (m *MockGatewayClient) ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error) {
+	if m.ListContactsFunc != nil {
+		return m.ListContactsFunc(ctx, limit, offset)
+	}
+	return &waga.ContactListResponse{Contacts: []waga.ContactListItem{}, Count: 0, Total: 0}, nil
+}
+
+func (m *MockGatewayClient) GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error) {
+	if m.GetContactInfoFunc != nil {
+		return m.GetContactInfoFunc(ctx, chat)
+	}
+	return &waga.ContactInfoResponse{JID: chat}, nil
+}
+
+func (m *MockGatewayClient) GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+	if m.GetAvatarFunc != nil {
+		return m.GetAvatarFunc(ctx, chat, preview)
+	}
+	return &waga.AvatarResponse{JID: chat, URL: "https://cdn.example/avatar.jpg", ID: "abc", Type: "image"}, nil
+}
+
+func (m *MockGatewayClient) ListGroups(ctx context.Context) (*waga.GroupListResponse, error) {
+	if m.ListGroupsFunc != nil {
+		return m.ListGroupsFunc(ctx)
+	}
+	return &waga.GroupListResponse{Groups: []waga.GroupListItem{}, Count: 0}, nil
+}
+
+func (m *MockGatewayClient) GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error) {
+	if m.GetGroupInfoFunc != nil {
+		return m.GetGroupInfoFunc(ctx, chat)
+	}
+	return &waga.GroupInfoResponse{JID: chat}, nil
 }
 
 // Test SendTextMessageDirect
@@ -1138,5 +1179,155 @@ func TestGetJobStatus(t *testing.T) {
 func TestGetJobStatus_RequiresJobID(t *testing.T) {
 	if _, err := GetJobStatusDirect(&MockGatewayClient{}, GetJobStatusInput{}); err == nil {
 		t.Error("expected error for empty job_id")
+	}
+}
+
+// Test contact & group read tools (commit 3)
+
+func TestListContacts_PassesPaginationAndReturns(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		ListContactsFunc: func(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error) {
+			if limit != 50 || offset != 10 {
+				t.Errorf("expected limit=50 offset=10, got %d/%d", limit, offset)
+			}
+			return &waga.ContactListResponse{
+				Contacts: []waga.ContactListItem{{JID: "628@s.whatsapp.net", PushName: "Alice"}},
+				Count:    1,
+				Total:    1,
+			}, nil
+		},
+	}
+	res, err := ListContactsDirect(mockClient, ListContactsInput{Limit: 50, Offset: 10})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Count != 1 || len(res.Contacts) != 1 || res.Contacts[0].PushName != "Alice" {
+		t.Errorf("unexpected result: %+v", res)
+	}
+}
+
+func TestListContacts_EmptyIsNotError(t *testing.T) {
+	res, err := ListContactsDirect(&MockGatewayClient{}, ListContactsInput{})
+	if err != nil {
+		t.Fatalf("empty address book must not error: %v", err)
+	}
+	if res.Count != 0 || len(res.Contacts) != 0 {
+		t.Errorf("expected empty result, got %+v", res)
+	}
+}
+
+func TestGetContactInfo_RequiresChat(t *testing.T) {
+	if _, err := GetContactInfoDirect(&MockGatewayClient{}, GetContactInfoInput{}); err == nil {
+		t.Error("expected error for empty chat")
+	}
+}
+
+func TestGetContactInfo_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetContactInfoFunc: func(ctx context.Context, chat string) (*waga.ContactInfoResponse, error) {
+			return &waga.ContactInfoResponse{JID: chat, VerifiedName: "Acme", DeviceCount: 2}, nil
+		},
+	}
+	res, err := GetContactInfoDirect(mockClient, GetContactInfoInput{Chat: "628@s.whatsapp.net"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.VerifiedName != "Acme" || res.DeviceCount != 2 {
+		t.Errorf("unexpected result: %+v", res)
+	}
+}
+
+func TestGetAvatar_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetAvatarFunc: func(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+			return &waga.AvatarResponse{JID: chat, URL: "https://cdn/x.jpg", ID: "id1", Type: "image"}, nil
+		},
+	}
+	res, err := GetAvatarDirect(mockClient, GetAvatarInput{Chat: "628@s.whatsapp.net"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.Available || res.URL != "https://cdn/x.jpg" {
+		t.Errorf("expected available avatar, got %+v", res)
+	}
+}
+
+func TestGetAvatar_NotSetIsResultNotError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetAvatarFunc: func(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+			return nil, fmt.Errorf("failed to get avatar: %w", waga.ErrNotFound)
+		},
+	}
+	res, err := GetAvatarDirect(mockClient, GetAvatarInput{Chat: "628@s.whatsapp.net"})
+	if err != nil {
+		t.Fatalf("404 must be surfaced as a result, not an error: %v", err)
+	}
+	if res.Available || res.Reason != "not_set" {
+		t.Errorf("expected available=false reason=not_set, got %+v", res)
+	}
+}
+
+func TestGetAvatar_HiddenIsResultNotError(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetAvatarFunc: func(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+			return nil, fmt.Errorf("failed to get avatar: %w", waga.ErrForbidden)
+		},
+	}
+	res, err := GetAvatarDirect(mockClient, GetAvatarInput{Chat: "628@s.whatsapp.net"})
+	if err != nil {
+		t.Fatalf("403 must be surfaced as a result, not an error: %v", err)
+	}
+	if res.Available || res.Reason != "hidden" {
+		t.Errorf("expected available=false reason=hidden, got %+v", res)
+	}
+}
+
+func TestGetAvatar_RequiresChat(t *testing.T) {
+	if _, err := GetAvatarDirect(&MockGatewayClient{}, GetAvatarInput{}); err == nil {
+		t.Error("expected error for empty chat")
+	}
+}
+
+func TestListGroups_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		ListGroupsFunc: func(ctx context.Context) (*waga.GroupListResponse, error) {
+			return &waga.GroupListResponse{
+				Groups: []waga.GroupListItem{{JID: "123@g.us", Name: "Team", ParticipantCount: 3}},
+				Count:  1,
+			}, nil
+		},
+	}
+	res, err := ListGroupsDirect(mockClient, ListGroupsInput{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Count != 1 || res.Groups[0].Name != "Team" {
+		t.Errorf("unexpected result: %+v", res)
+	}
+}
+
+func TestGetGroupInfo_RequiresChat(t *testing.T) {
+	if _, err := GetGroupInfoDirect(&MockGatewayClient{}, GetGroupInfoInput{}); err == nil {
+		t.Error("expected error for empty chat")
+	}
+}
+
+func TestGetGroupInfo_Success(t *testing.T) {
+	mockClient := &MockGatewayClient{
+		GetGroupInfoFunc: func(ctx context.Context, chat string) (*waga.GroupInfoResponse, error) {
+			return &waga.GroupInfoResponse{
+				JID:              chat,
+				Name:             "Team",
+				ParticipantCount: 2,
+				Participants:     []waga.GroupParticipantItem{{JID: "628@s.whatsapp.net", IsAdmin: true}},
+			}, nil
+		},
+	}
+	res, err := GetGroupInfoDirect(mockClient, GetGroupInfoInput{Chat: "123@g.us"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Name != "Team" || len(res.Participants) != 1 || !res.Participants[0].IsAdmin {
+		t.Errorf("unexpected result: %+v", res)
 	}
 }
