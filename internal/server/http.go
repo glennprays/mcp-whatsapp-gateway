@@ -23,7 +23,7 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 	// Create MCP server instance
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "whatsapp-gateway",
-		Version: "1.0.0",
+		Version: "0.7.0",
 	}, nil)
 
 	// Register all tools (same as stdio)
@@ -91,6 +91,43 @@ func NewHTTPServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*HT
 		Name:        "get_latest_incoming_messages",
 		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
+
+	// Contact & group read tools (same as stdio)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_contacts",
+		Description: "List the account's locally-synced WhatsApp contacts (paginated via limit/offset). Reads the local address book; an empty result is normal, never an error.",
+	}, createListContactsHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_contact_info",
+		Description: "Look up one contact's WhatsApp profile by chat (a number, user JID, or @lid): status text, current picture id, verified business name, linked-device count, and lid.",
+	}, createGetContactInfoHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_avatar",
+		Description: "Get a chat's profile picture URL (user or @g.us group). Set preview for the low-res thumbnail. Returns available=false with reason 'not_set' (no picture) or 'hidden' (privacy) instead of failing.",
+	}, createGetAvatarHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_groups",
+		Description: "List the account's joined WhatsApp groups as lightweight summaries (no participant roster; use get_group_info for one group's full detail).",
+	}, createListGroupsHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_group_info",
+		Description: "Get one group's full detail plus its participant roster by chat (a @g.us group JID). The account must be a member (403 if not, 404 if absent).",
+	}, createGetGroupInfoHandler(gatewayClient))
+
+	// Two-way conversation tools (same as stdio)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mark_read",
+		Description: "Mark one or more messages in a chat as read (blue ticks). Provide chat (canonical recipient) and message_ids[]; sender (the message author's JID/number) is required for group chats. This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createMarkReadHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_typing",
+		Description: "Set the typing indicator in a chat: state = composing (typing…), recording (recording audio…), or paused (cleared). This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createSendTypingHandler(gatewayClient))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "check_connection_status",

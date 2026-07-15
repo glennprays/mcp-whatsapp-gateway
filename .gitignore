@@ -17,6 +17,7 @@ BRIEF.md
 
 # Go workspace file
 go.work
+go.work.sum
 
 # Build artifacts
 /mcp-whatsapp-gateway

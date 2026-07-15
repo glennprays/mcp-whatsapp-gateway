@@ -25,7 +25,7 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 	// Create MCP server instance
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "whatsapp-gateway",
-		Version: "1.0.0",
+		Version: "0.7.0",
 	}, nil)
 
 	// Register messaging tools using the SDK's typed handler system
@@ -94,6 +94,43 @@ func NewStdioServer(cfg *config.Config, gatewayClient gateway.GatewayClient) (*M
 		Name:        "get_latest_incoming_messages",
 		Description: "Fetch the most recent incoming WhatsApp messages. Useful for reading OTPs, verification codes, or recent conversation context. Returns newest first (text, image, video, audio, document, sticker, location, poll). Optional limit (default 10, max 50).",
 	}, createGetLatestIncomingMessagesHandler(gatewayClient))
+
+	// Register contact & group read tools
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_contacts",
+		Description: "List the account's locally-synced WhatsApp contacts (paginated via limit/offset). Reads the local address book; an empty result is normal, never an error.",
+	}, createListContactsHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_contact_info",
+		Description: "Look up one contact's WhatsApp profile by chat (a number, user JID, or @lid): status text, current picture id, verified business name, linked-device count, and lid.",
+	}, createGetContactInfoHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_avatar",
+		Description: "Get a chat's profile picture URL (user or @g.us group). Set preview for the low-res thumbnail. Returns available=false with reason 'not_set' (no picture) or 'hidden' (privacy) instead of failing.",
+	}, createGetAvatarHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_groups",
+		Description: "List the account's joined WhatsApp groups as lightweight summaries (no participant roster; use get_group_info for one group's full detail).",
+	}, createListGroupsHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "get_group_info",
+		Description: "Get one group's full detail plus its participant roster by chat (a @g.us group JID). The account must be a member (403 if not, 404 if absent).",
+	}, createGetGroupInfoHandler(gatewayClient))
+
+	// Register two-way conversation tools
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "mark_read",
+		Description: "Mark one or more messages in a chat as read (blue ticks). Provide chat (canonical recipient) and message_ids[]; sender (the message author's JID/number) is required for group chats. This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createMarkReadHandler(gatewayClient))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "send_typing",
+		Description: "Set the typing indicator in a chat: state = composing (typing…), recording (recording audio…), or paused (cleared). This is a conversation-affecting action governed by the gateway's outbound pacer (per-account pace + per-recipient cap); over-budget calls are paced or rejected with 429.",
+	}, createSendTypingHandler(gatewayClient))
 
 	// Register connection tools
 	mcp.AddTool(server, &mcp.Tool{
@@ -256,6 +293,76 @@ func createGetJobStatusHandler(gatewayClient gateway.GatewayClient) mcp.ToolHand
 func createGetLatestIncomingMessagesHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetLatestIncomingMessagesInput, any] {
 	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetLatestIncomingMessagesInput) (*mcp.CallToolResult, any, error) {
 		result, err := tools.GetLatestIncomingMessagesDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createListContactsHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.ListContactsInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.ListContactsInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.ListContactsDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createGetContactInfoHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetContactInfoInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetContactInfoInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.GetContactInfoDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createGetAvatarHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetAvatarInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetAvatarInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.GetAvatarDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createListGroupsHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.ListGroupsInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.ListGroupsInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.ListGroupsDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createGetGroupInfoHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.GetGroupInfoInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.GetGroupInfoInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.GetGroupInfoDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createMarkReadHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.MarkReadInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.MarkReadInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.MarkReadDirect(gatewayClient, input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, result, nil
+	}
+}
+
+func createSendTypingHandler(gatewayClient gateway.GatewayClient) mcp.ToolHandlerFor[tools.SendTypingInput, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, input tools.SendTypingInput) (*mcp.CallToolResult, any, error) {
+		result, err := tools.SendTypingDirect(gatewayClient, input)
 		if err != nil {
 			return nil, nil, err
 		}

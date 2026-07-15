@@ -17,15 +17,17 @@ const (
 
 // GatewayClient defines the interface for gateway operations
 type GatewayClient interface {
-	// Message operations
-	SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error)
-	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error)
-	SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error)
-	SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error)
-	SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error)
-	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error)
-	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error)
-	SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error)
+	// Message operations. Sends take a trailing variadic of SDK SendOptions
+	// (WithChat / WithReply / WithMentions) so callers can address by canonical
+	// chat and thread replies/mentions without changing the positional args.
+	SendText(ctx context.Context, msisdn, message string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int, opts ...waga.SendOption) (*SendMessageResponse, error)
+	SendSticker(ctx context.Context, msisdn string, sticker io.Reader, opts ...waga.SendOption) (*SendMessageResponse, error)
 	EditMessage(ctx context.Context, msisdn, messageID, newMessage string) error
 	DeleteMessage(ctx context.Context, msisdn, messageID string) error
 	ReactToMessage(ctx context.Context, msisdn, messageID, emoji string, senderMsisdn ...string) error
@@ -33,6 +35,21 @@ type GatewayClient interface {
 	// Read operations
 	GetIncomingMessages(ctx context.Context, limit int) (*waga.IncomingMessagesResponse, error)
 	GetJobStatus(ctx context.Context, jobID string) (*JobStatusResponse, error)
+
+	// Contact & group reads. These return the SDK response types directly; the
+	// error chains preserve the SDK sentinels (waga.IsNotFound / waga.IsForbidden)
+	// so tools can surface soft failures as results.
+	ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error)
+	GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error)
+	GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error)
+	ListGroups(ctx context.Context) (*waga.GroupListResponse, error)
+	GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error)
+
+	// Two-way conversation actions. These are outbound, conversation-affecting
+	// calls governed server-side by the gateway's outbound pacer (per-account
+	// pace + per-recipient cap); over-budget calls are paced or 429'd.
+	MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error
+	SendChatPresence(ctx context.Context, chat, state string) error
 
 	// Connection operations
 	GetLoginStatus(ctx context.Context) (*LoginStatus, error)
@@ -91,8 +108,8 @@ func (c *Client) GetClient() *waga.Client {
 }
 
 // SendText sends a text message to the specified recipient
-func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendText(ctx, msisdn, message)
+func (c *Client) SendText(ctx context.Context, msisdn, message string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendText(ctx, msisdn, message, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send text message: %w", err)
 	}
@@ -106,8 +123,8 @@ func (c *Client) SendText(ctx context.Context, msisdn, message string) (*SendMes
 }
 
 // SendImage sends an image message to the specified recipient
-func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce)
+func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, caption string, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendImage(ctx, msisdn, image, caption, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send image message: %w", err)
 	}
@@ -121,8 +138,8 @@ func (c *Client) SendImage(ctx context.Context, msisdn string, image io.Reader, 
 }
 
 // SendAudio sends an audio message to the specified recipient
-func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendAudio(ctx, msisdn, audio, isPTT, isViewOnce)
+func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, isPTT, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendAudio(ctx, msisdn, audio, isPTT, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send audio message: %w", err)
 	}
@@ -136,8 +153,8 @@ func (c *Client) SendAudio(ctx context.Context, msisdn string, audio io.Reader, 
 }
 
 // SendVideo sends a video message to the specified recipient
-func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool) (*SendMessageResponse, error) {
-	resp, err := c.client.SendVideo(ctx, msisdn, video, caption, isGif, isViewOnce)
+func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, caption string, isGif, isViewOnce bool, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendVideo(ctx, msisdn, video, caption, isGif, isViewOnce, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send video message: %w", err)
 	}
@@ -151,8 +168,8 @@ func (c *Client) SendVideo(ctx context.Context, msisdn string, video io.Reader, 
 }
 
 // SendDocument sends a document message to the specified recipient
-func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendDocument(ctx, msisdn, document, fileName, caption)
+func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Reader, fileName, caption string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendDocument(ctx, msisdn, document, fileName, caption, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send document message: %w", err)
 	}
@@ -166,8 +183,8 @@ func (c *Client) SendDocument(ctx context.Context, msisdn string, document io.Re
 }
 
 // SendLocation sends a location message to the specified recipient
-func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string) (*SendMessageResponse, error) {
-	resp, err := c.client.SendLocation(ctx, msisdn, latitude, longitude, name, address)
+func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, longitude float64, name, address string, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendLocation(ctx, msisdn, latitude, longitude, name, address, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send location message: %w", err)
 	}
@@ -181,8 +198,8 @@ func (c *Client) SendLocation(ctx context.Context, msisdn string, latitude, long
 }
 
 // SendPoll sends a poll message to the specified recipient
-func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int) (*SendMessageResponse, error) {
-	resp, err := c.client.SendPoll(ctx, msisdn, question, options, selectableCount)
+func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options []string, selectableCount int, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendPoll(ctx, msisdn, question, options, selectableCount, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send poll message: %w", err)
 	}
@@ -196,8 +213,8 @@ func (c *Client) SendPoll(ctx context.Context, msisdn, question string, options 
 }
 
 // SendSticker sends a sticker message to the specified recipient
-func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Reader) (*SendMessageResponse, error) {
-	resp, err := c.client.SendSticker(ctx, msisdn, sticker)
+func (c *Client) SendSticker(ctx context.Context, msisdn string, sticker io.Reader, opts ...waga.SendOption) (*SendMessageResponse, error) {
+	resp, err := c.client.SendSticker(ctx, msisdn, sticker, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send sticker message: %w", err)
 	}
@@ -264,6 +281,71 @@ func (c *Client) GetJobStatus(ctx context.Context, jobID string) (*JobStatusResp
 		CreatedAt:   resp.CreatedAt,
 		CompletedAt: resp.CompletedAt,
 	}, nil
+}
+
+// ListContacts returns a page of the account's locally-synced contacts. An empty
+// address book is not an error (the gateway never 404s on empty).
+func (c *Client) ListContacts(ctx context.Context, limit, offset int) (*waga.ContactListResponse, error) {
+	resp, err := c.client.ListContacts(ctx, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list contacts: %w", err)
+	}
+	return resp, nil
+}
+
+// GetContactInfo returns a server-side profile lookup for one user.
+func (c *Client) GetContactInfo(ctx context.Context, chat string) (*waga.ContactInfoResponse, error) {
+	resp, err := c.client.GetContactInfo(ctx, chat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact info: %w", err)
+	}
+	return resp, nil
+}
+
+// GetAvatar returns a chat's profile picture. preview requests the low-res
+// thumbnail. The returned error preserves the SDK sentinels: a chat with no
+// picture yields waga.ErrNotFound (404), a hidden picture waga.ErrForbidden (403).
+func (c *Client) GetAvatar(ctx context.Context, chat string, preview bool) (*waga.AvatarResponse, error) {
+	resp, err := c.client.GetAvatar(ctx, chat, preview)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get avatar: %w", err)
+	}
+	return resp, nil
+}
+
+// ListGroups returns the account's joined groups as lightweight summaries.
+func (c *Client) ListGroups(ctx context.Context) (*waga.GroupListResponse, error) {
+	resp, err := c.client.ListGroups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list groups: %w", err)
+	}
+	return resp, nil
+}
+
+// GetGroupInfo returns a single group's full detail plus its participant roster.
+func (c *Client) GetGroupInfo(ctx context.Context, chat string) (*waga.GroupInfoResponse, error) {
+	resp, err := c.client.GetGroupInfo(ctx, chat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group info: %w", err)
+	}
+	return resp, nil
+}
+
+// MarkRead marks one or more messages in a chat as read (blue ticks). sender is
+// the message author's JID/number and is required for group chats.
+func (c *Client) MarkRead(ctx context.Context, chat string, messageIDs []string, sender string) error {
+	if err := c.client.MarkRead(ctx, chat, messageIDs, sender); err != nil {
+		return fmt.Errorf("failed to mark messages read: %w", err)
+	}
+	return nil
+}
+
+// SendChatPresence sets the typing indicator in a chat (composing/recording/paused).
+func (c *Client) SendChatPresence(ctx context.Context, chat, state string) error {
+	if err := c.client.SendChatPresence(ctx, chat, state); err != nil {
+		return fmt.Errorf("failed to send chat presence: %w", err)
+	}
+	return nil
 }
 
 // GetLoginStatus checks if the WhatsApp session is authenticated

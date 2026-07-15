@@ -304,15 +304,37 @@ claude mcp add -e WAGA_BASE_URL=http://host.docker.internal:3000/api/v1 \
 
 The following tools are exposed by this MCP server:
 
+> **Curated subset — read & messaging only.** This MCP deliberately exposes only
+> read and messaging capabilities. It does **not** expose group/community
+> **mutations** (create, leave, participants, settings, name, topic, photo,
+> invite, join, requests), **community** operations, the operator **admin** plane
+> (sessions), or **metrics** — even though the underlying SDK and gateway support
+> them. This keeps an autonomous agent from performing destructive or
+> account-wide actions. A guard test (`internal/server/manifest_test.go`)
+> enforces the exclusion. To perform those operations, call the gateway's REST
+> API directly from a trusted backend.
+
 ### Messaging Tools
+
+**Common send arguments.** Every send tool below accepts canonical chat
+addressing plus optional reply/mention threading, in addition to its
+tool-specific fields:
+
+- `chat` (string): Canonical recipient — a bare number, a user JID
+  (`@s.whatsapp.net`), a group JID (`@g.us`), or a `@lid`. Preferred; wins over
+  `to` when both are set.
+- `to` (string): Back-compat alias for the recipient. Either `chat` or `to` is required.
+- `reply_to_id` (string, optional): Quote an existing message by id.
+- `reply_to_sender` (string, optional): Author JID/number of the quoted message.
+- `reply_to_text` (string, optional): Caller-supplied preview of the quoted text (the gateway is storeless and does not look it up).
+- `mentions` (array of strings, optional): Numbers/JIDs to @-tag in the message.
 
 #### send_text_message
 Send a text message to a WhatsApp contact or group.
 
 **Input:**
-- `to` (string, required): Recipient address in JID format
-  - Individual: `{phone}@s.whatsapp.net` (e.g., `6281234567890@s.whatsapp.net`)
-  - Group: `{group_id}@g.us` (e.g., `120363xxxxx@g.us`)
+- `chat` (string): Canonical recipient (preferred) — see Common send arguments above.
+- `to` (string): Back-compat recipient alias. Either `chat` or `to` is required.
 - `message` (string, required): Text message content
 
 **Returns:** Message ID and status
@@ -447,6 +469,74 @@ Fetch the most recent incoming WhatsApp messages buffered by the gateway. Useful
 - The gateway keeps the most recent 100 incoming messages per session in memory. Buffer is lost on gateway restart — acceptable for short-lived OTP retrieval.
 - Messages from the user (`is_from_me`) are excluded.
 - `group_name` resolution is deferred — group messages return `is_group: true` and the group JID in `chat`.
+
+### Contact & Group Read Tools
+
+#### list_contacts
+List the account's locally-synced WhatsApp contacts. Reads the local address book; an empty result is normal, never an error.
+
+**Input:**
+- `limit` (integer, optional): Page size. Gateway default 100, max 500.
+- `offset` (integer, optional): Pagination offset.
+
+**Returns:** `contacts[]` (`jid`, `push_name`, `full_name`, `first_name`, `business_name`), `count`, `total`, and an optional `note`.
+
+#### get_contact_info
+Look up one contact's WhatsApp profile.
+
+**Input:**
+- `chat` (string, required): Canonical recipient — a number, user JID, or `@lid`.
+
+**Returns:** `jid`, `status`, `picture_id`, `verified_name`, `device_count`, `lid`.
+
+#### get_avatar
+Get a chat's profile picture URL (user or group). Soft failures are surfaced as results, not errors.
+
+**Input:**
+- `chat` (string, required): Canonical recipient (user or `@g.us` group).
+- `preview` (boolean, optional): Request the low-res thumbnail instead of full-resolution.
+
+**Returns:** `jid`, `available` (boolean). When available: `url` (time-limited CDN link), `id` (ETag), `type` (`image`/`preview`). When not: `available=false` with `reason` `not_set` (404, no picture) or `hidden` (403, privacy).
+
+#### list_groups
+List the account's joined groups as lightweight summaries (no participant roster; use `get_group_info` for one group's full detail).
+
+**Input:** None
+
+**Returns:** `groups[]` (`jid`, `name`, `topic`, `owner_jid`, `participant_count`, `is_announce`, `is_locked`, `is_community`) and `count`. Server-hitting read subject to a per-account budget (`429` when exhausted).
+
+#### get_group_info
+Get one group's full detail plus its participant roster.
+
+**Input:**
+- `chat` (string, required): A group JID (`@g.us`). The account must be a member.
+
+**Returns:** Group detail plus `participants[]` (`jid`, `phone_number`, `lid`, `is_admin`, `is_super_admin`). `403` if not a member, `404` if absent.
+
+### Conversation Tools
+
+> These are conversation-affecting **outbound** actions. They are governed by the
+> gateway's outbound pacer (per-account pace + per-recipient cap); over-budget
+> calls are paced or rejected with `429`. This is real pacing, not an interim cap.
+
+#### mark_read
+Mark one or more messages in a chat as read (blue ticks).
+
+**Input:**
+- `chat` (string, required): Canonical recipient.
+- `message_ids` (array of strings, required): Message IDs to mark read.
+- `sender` (string, optional): Message author's JID/number — required for group chats.
+
+**Returns:** Success status.
+
+#### send_typing
+Set the typing indicator in a chat.
+
+**Input:**
+- `chat` (string, required): Canonical recipient.
+- `state` (string, required): One of `composing` (typing…), `recording` (recording audio…), or `paused` (cleared).
+
+**Returns:** Success status and the applied state.
 
 ### Connection Tools
 
