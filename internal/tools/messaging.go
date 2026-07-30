@@ -301,7 +301,8 @@ func SendImageMessageDirect(client gateway.GatewayClient, input SendImageInput) 
 
 // EditMessageInput represents the input for editing a message
 type EditMessageInput struct {
-	To         string `json:"to"`
+	Chat       string `json:"chat,omitempty"`
+	To         string `json:"to,omitempty"`
 	MessageID  string `json:"message_id"`
 	NewMessage string `json:"new_message"`
 }
@@ -314,8 +315,9 @@ type EditMessageResult struct {
 
 // EditMessageDirect edits a previously sent message
 func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (EditMessageResult, error) {
-	if input.To == "" {
-		return EditMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	addr, err := resolveSendAddr(input.Chat, input.To)
+	if err != nil {
+		return EditMessageResult{}, err
 	}
 	if input.MessageID == "" {
 		return EditMessageResult{}, fmt.Errorf("message ID is required")
@@ -325,7 +327,7 @@ func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (Ed
 	}
 
 	ctx := context.Background()
-	err := client.EditMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.NewMessage)
+	err = client.EditMessage(ctx, addr, input.MessageID, input.NewMessage)
 	if err != nil {
 		return EditMessageResult{}, fmt.Errorf("edit_message: %w", err)
 	}
@@ -338,7 +340,8 @@ func EditMessageDirect(client gateway.GatewayClient, input EditMessageInput) (Ed
 
 // DeleteMessageInput represents the input for deleting a message
 type DeleteMessageInput struct {
-	To        string `json:"to"`
+	Chat      string `json:"chat,omitempty"`
+	To        string `json:"to,omitempty"`
 	MessageID string `json:"message_id"`
 }
 
@@ -350,15 +353,16 @@ type DeleteMessageResult struct {
 
 // DeleteMessageDirect deletes a previously sent message
 func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput) (DeleteMessageResult, error) {
-	if input.To == "" {
-		return DeleteMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	addr, err := resolveSendAddr(input.Chat, input.To)
+	if err != nil {
+		return DeleteMessageResult{}, err
 	}
 	if input.MessageID == "" {
 		return DeleteMessageResult{}, fmt.Errorf("message ID is required")
 	}
 
 	ctx := context.Background()
-	err := client.DeleteMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID)
+	err = client.DeleteMessage(ctx, addr, input.MessageID)
 	if err != nil {
 		return DeleteMessageResult{}, fmt.Errorf("delete_message: %w", err)
 	}
@@ -371,7 +375,8 @@ func DeleteMessageDirect(client gateway.GatewayClient, input DeleteMessageInput)
 
 // ReactToMessageInput represents the input for reacting to a message
 type ReactToMessageInput struct {
-	To           string `json:"to"`
+	Chat         string `json:"chat,omitempty"`
+	To           string `json:"to,omitempty"`
 	MessageID    string `json:"message_id"`
 	Emoji        string `json:"emoji"`
 	SenderMsisdn string `json:"sender_msisdn,omitempty"`
@@ -385,8 +390,9 @@ type ReactToMessageResult struct {
 
 // ReactToMessageDirect reacts to a message with an emoji
 func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInput) (ReactToMessageResult, error) {
-	if input.To == "" {
-		return ReactToMessageResult{}, fmt.Errorf("recipient address (to) is required")
+	addr, err := resolveSendAddr(input.Chat, input.To)
+	if err != nil {
+		return ReactToMessageResult{}, err
 	}
 	if input.MessageID == "" {
 		return ReactToMessageResult{}, fmt.Errorf("message ID is required")
@@ -396,11 +402,10 @@ func ReactToMessageDirect(client gateway.GatewayClient, input ReactToMessageInpu
 	}
 
 	ctx := context.Background()
-	var err error
 	if input.SenderMsisdn != "" {
-		err = client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji, waga.FormatMSISDN(input.SenderMsisdn))
+		err = client.ReactToMessage(ctx, addr, input.MessageID, input.Emoji, waga.FormatMSISDN(input.SenderMsisdn))
 	} else {
-		err = client.ReactToMessage(ctx, waga.FormatMSISDN(input.To), input.MessageID, input.Emoji)
+		err = client.ReactToMessage(ctx, addr, input.MessageID, input.Emoji)
 	}
 	if err != nil {
 		return ReactToMessageResult{}, fmt.Errorf("react_to_message: %w", err)
@@ -530,7 +535,8 @@ func SendStickerMessageDirect(client gateway.GatewayClient, input SendStickerInp
 
 // CheckContactInput represents the input for checking a contact registration.
 type CheckContactInput struct {
-	Msisdn string `json:"msisdn"`
+	Chat   string `json:"chat,omitempty"`
+	Msisdn string `json:"msisdn,omitempty"`
 }
 
 // CheckContactResult represents the result of checking contact registration.
@@ -543,11 +549,15 @@ type CheckContactResult struct {
 
 // CheckContactDirect checks whether the number is registered on WhatsApp.
 func CheckContactDirect(client gateway.GatewayClient, input CheckContactInput) (CheckContactResult, error) {
-	if input.Msisdn == "" {
-		return CheckContactResult{}, fmt.Errorf("msisdn is required")
+	addr := input.Chat
+	if addr == "" {
+		addr = input.Msisdn
+	}
+	if addr == "" {
+		return CheckContactResult{}, fmt.Errorf("recipient address (chat or msisdn) is required")
 	}
 
-	resp, err := client.CheckContact(context.Background(), input.Msisdn)
+	resp, err := client.CheckContact(context.Background(), addr)
 	if err != nil {
 		return CheckContactResult{}, fmt.Errorf("check_contact: %w", err)
 	}
